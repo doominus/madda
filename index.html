@@ -157,6 +157,35 @@
     font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
+
+  /* ---------- Popup "Tavoli liberi" (nuvoletta) ---------- */
+  .free-tables-wrap{position:relative;display:inline-flex;}
+  .free-tables-btn{
+    font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+    padding:6px 11px;border-radius:1px;border:1px solid var(--border);background:transparent;color:var(--muted);
+    cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    transition:border-color .15s ease,color .15s ease;
+  }
+  .free-tables-btn:active,.free-tables-btn.active{border-color:var(--text);color:var(--text);}
+  .free-tables-popup{
+    display:none;position:absolute;top:calc(100% + 12px);left:0;z-index:40;
+    background:var(--card);border:1px solid var(--border);border-radius:2px;box-shadow:var(--shadow-lg);
+    padding:14px 16px;min-width:200px;max-width:280px;
+  }
+  .free-tables-popup::before{
+    content:"";position:absolute;bottom:100%;left:16px;border:7px solid transparent;border-bottom-color:var(--border);
+  }
+  .free-tables-popup::after{
+    content:"";position:absolute;bottom:100%;left:17px;border:6px solid transparent;border-bottom-color:var(--card);
+  }
+  .free-tables-popup.show{display:block;}
+  .free-tables-popup-title{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:11px;}
+  .free-tables-popup-list{display:flex;flex-wrap:wrap;gap:7px;}
+  .free-tables-chip{
+    border:1.5px solid var(--ok);border-radius:1px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--text);
+    background:transparent;letter-spacing:.02em;
+  }
+  .free-tables-empty{color:var(--muted);font-size:12.5px;font-style:italic;margin:0;}
   .add-btn{
     width:34px;height:34px;border-radius:50%;border:1px solid var(--text);font-size:17px;cursor:pointer;
     color:var(--text);line-height:1;display:flex;align-items:center;justify-content:center;
@@ -314,6 +343,7 @@
   .phone-status.phone-status-error{color:var(--warn);}
 
   .abituale-toggle{display:inline-flex;align-items:center;gap:6px;width:auto;}
+  .toggle-row{display:flex;gap:10px;flex-wrap:wrap;}
 
   /* ---------- Riepilogo prenotazioni per orario (sotto l'intestazione dei pannelli) ---------- */
   .orario-breakdown{
@@ -361,6 +391,9 @@
   .disp-res-row .disp-res-ospiti{font-size:11.5px;color:var(--muted);flex-shrink:0;}
   .disp-res-row .disp-res-tables{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:280px;flex-shrink:0;}
   .disp-res-note{font-size:11.5px;color:var(--muted);padding-left:58px;word-break:break-word;}
+  .disp-res-pos-icon{font-size:14px;line-height:1;flex-shrink:0;}
+  .disp-table-chip.shared{border-style:dashed;}
+  .dtc-assigned-to{white-space:normal;text-align:center;}
   .disp-res-tag{
     font-size:10px;font-weight:700;border:1px solid var(--text);color:var(--text);padding:4px 8px;border-radius:1px;
     text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;
@@ -561,7 +594,13 @@
   <main class="view-both">
     <section class="panel" data-turno="pranzo">
       <div class="panel-header">
-        <div class="panel-title"><span class="panel-icon">&#9728;&#65039;</span> Pranzo <span class="panel-count" id="count-pranzo"></span></div>
+        <div class="panel-title">
+          <span class="panel-icon">&#9728;&#65039;</span> Pranzo <span class="panel-count" id="count-pranzo"></span>
+          <span class="free-tables-wrap">
+            <button type="button" class="free-tables-btn" id="free-tables-btn-pranzo" data-turno="pranzo">Tavoli liberi</button>
+            <div class="free-tables-popup" id="free-tables-popup-pranzo"></div>
+          </span>
+        </div>
         <div style="display:flex;align-items:center;">
           <button class="toolbar-btn disp-btn" data-turno="pranzo">Disposizione</button>
           <button class="add-btn" data-turno="pranzo">+</button>
@@ -573,7 +612,13 @@
 
     <section class="panel" data-turno="cena">
       <div class="panel-header">
-        <div class="panel-title"><span class="panel-icon">&#127769;</span> Cena <span class="panel-count" id="count-cena"></span></div>
+        <div class="panel-title">
+          <span class="panel-icon">&#127769;</span> Cena <span class="panel-count" id="count-cena"></span>
+          <span class="free-tables-wrap">
+            <button type="button" class="free-tables-btn" id="free-tables-btn-cena" data-turno="cena">Tavoli liberi</button>
+            <div class="free-tables-popup" id="free-tables-popup-cena"></div>
+          </span>
+        </div>
         <div style="display:flex;align-items:center;">
           <button class="toolbar-btn disp-btn" data-turno="cena">Disposizione</button>
           <button class="add-btn" data-turno="cena">+</button>
@@ -619,9 +664,11 @@
       <input type="tel" id="f-telefono" placeholder="Es. 333 1234567" autocomplete="off">
       <div class="phone-status" id="phone-status"></div>
     </div>
-    <div class="field">
+    <div class="field toggle-row">
       <button type="button" class="chip-option abituale-toggle" id="f-abituale-toggle">&#11088; Cliente abituale</button>
+      <button type="button" class="chip-option abituale-toggle" id="f-primo-turno-toggle">&#128260; Primo turno</button>
     </div>
+    <p style="font-size:11.5px;color:var(--muted);margin:-12px 0 18px;line-height:1.4;">"Primo turno" = il tavolo si libera in tempo per un altro cliente: in "Disposizione" gli si potra' assegnare un tavolo gia' occupato da un altro (es. chi arriva piu' tardi).</p>
     <div class="field">
       <label>Inserito da</label>
       <input type="hidden" id="f-utente">
@@ -733,6 +780,7 @@
   utente text,
   abituale boolean not null default false,
   posizione text,
+  primo_turno boolean not null default false,
   created_at timestamptz default now()
 );
 
@@ -771,6 +819,10 @@ alter table prenotazioni add column if not exists cancellato_at timestamptz;</pr
     <div class="alter-box">
       <p><b>Novita "Dentro / Fuori":</b> se la tua tabella esiste gia, esegui anche questo comando una sola volta per aggiungere il campo necessario:</p>
       <pre>alter table prenotazioni add column if not exists posizione text;</pre>
+    </div>
+    <div class="alter-box">
+      <p><b>Novita "Primo turno" e "Tavoli liberi":</b> se la tua tabella esiste gia, esegui anche questo comando una sola volta per aggiungere il campo necessario. Il pulsante "Tavoli liberi" accanto a Pranzo/Cena non richiede invece nessuna modifica al database.</p>
+      <pre>alter table prenotazioni add column if not exists primo_turno boolean not null default false;</pre>
     </div>
     <div class="alter-box">
       <p><b>Novita "Backup email automatico":</b> per attivare l'invio automatico ogni 6 ore, esegui una sola volta anche questo script (crea una piccola tabella dedicata alle impostazioni dell'app):</p>
@@ -1226,6 +1278,7 @@ function render() {
             ${r.tavolo ? `<span>&#127860; Tavolo ${escapeHtml(r.tavolo)}</span>` : ""}
             ${r.posizione === "dentro" ? `<span>&#127968; Dentro</span>` : ""}
             ${r.posizione === "fuori" ? `<span>&#9728;&#65039; Fuori</span>` : ""}
+            ${r.primo_turno ? `<span>&#128260; Primo turno</span>` : ""}
             ${r.telefono ? `<span>&#128222; ${escapeHtml(r.telefono)}</span>` : ""}
             ${r.utente ? `<span>&#128100; ${escapeHtml(r.utente)}</span>` : ""}
           </div>
@@ -1239,6 +1292,9 @@ function render() {
   });
   renderWeekStrip();
   updateAddButtonsState();
+  ["pranzo", "cena"].forEach(turno => {
+    if ($(`#free-tables-popup-${turno}`).classList.contains("show")) renderFreeTablesPopup(turno);
+  });
 }
 
 // Non si possono creare nuove prenotazioni per un giorno gia' passato: i
@@ -1688,6 +1744,15 @@ $("#f-abituale-toggle").addEventListener("click", () => {
   $("#f-abituale-toggle").classList.toggle("selected");
 });
 
+/* ---------- "Primo turno": consente in Disposizione di condividere un
+   tavolo con un'altra prenotazione (es. chi arriva piu' tardi) ---------- */
+$("#f-primo-turno-toggle").addEventListener("click", () => {
+  $("#f-primo-turno-toggle").classList.toggle("selected");
+});
+function setPrimoTurnoToggle(value) {
+  $("#f-primo-turno-toggle").classList.toggle("selected", !!value);
+}
+
 let phoneStatusTimer = null;
 $("#f-telefono").addEventListener("input", () => {
   clearTimeout(phoneStatusTimer);
@@ -1733,6 +1798,7 @@ function openNewModal(turno) {
   $("#phone-status").textContent = "";
   $("#phone-status").classList.remove("phone-status-error");
   setAbitualeToggle(false);
+  setPrimoTurnoToggle(false);
   fillEmployeeSelect(lastEmployee);
   $("#delete-btn").style.display = "none";
   $("#cancel-res-btn").style.display = "none";
@@ -1754,6 +1820,7 @@ function openEditModal(r) {
   $("#phone-status").textContent = "";
   $("#phone-status").classList.remove("phone-status-error");
   setAbitualeToggle(r.abituale);
+  setPrimoTurnoToggle(r.primo_turno);
   fillEmployeeSelect(r.utente || "");
   $("#delete-btn").style.display = "inline-block";
   const cancelBtn = $("#cancel-res-btn");
@@ -1824,6 +1891,7 @@ $("#save-btn").addEventListener("click", async () => {
     note,
     utente,
     abituale: $("#f-abituale-toggle").classList.contains("selected"),
+    primo_turno: $("#f-primo-turno-toggle").classList.contains("selected"),
   };
   if (utente) lastEmployee = utente;
   closeModal();
@@ -2150,6 +2218,59 @@ function assignedTableCount(items) {
   return set.size;
 }
 
+/* ---------- Popup "Tavoli liberi" (accanto a Pranzo/Cena) ----------
+   Mostra, senza dover aprire "Disposizione", quali tavoli non sono ancora
+   stati assegnati a nessuna prenotazione di quel turno/giorno. */
+function freeTablesForTurno(turno) {
+  if (!tables.length) return [];
+  const key = dateKey(currentDate);
+  const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
+  const assigned = new Set();
+  items.forEach(r => parseTavoli(r.tavolo).forEach(t => assigned.add(t)));
+  return tables.filter(t => !assigned.has(t));
+}
+
+function renderFreeTablesPopup(turno) {
+  const popup = $(`#free-tables-popup-${turno}`);
+  if (!popup) return;
+  if (!tables.length) {
+    popup.innerHTML = `<div class="free-tables-popup-title">Tavoli liberi</div><p class="free-tables-empty">Nessun tavolo configurato: aggiungilo dalle Impostazioni.</p>`;
+    return;
+  }
+  const free = freeTablesForTurno(turno);
+  popup.innerHTML = `
+    <div class="free-tables-popup-title">Tavoli liberi — ${free.length} su ${tables.length}</div>
+    ${free.length
+      ? `<div class="free-tables-popup-list">${free.map(t => `<span class="free-tables-chip">${escapeHtml(t)}</span>`).join("")}</div>`
+      : `<p class="free-tables-empty">Nessun tavolo libero per questo turno.</p>`}
+  `;
+}
+
+function closeAllFreeTablesPopups() {
+  ["pranzo", "cena"].forEach(turno => {
+    $(`#free-tables-popup-${turno}`).classList.remove("show");
+    $(`#free-tables-btn-${turno}`).classList.remove("active");
+  });
+}
+
+document.querySelectorAll(".free-tables-btn").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const turno = btn.dataset.turno;
+    const popup = $(`#free-tables-popup-${turno}`);
+    const wasOpen = popup.classList.contains("show");
+    closeAllFreeTablesPopups();
+    if (!wasOpen) {
+      renderFreeTablesPopup(turno);
+      popup.classList.add("show");
+      btn.classList.add("active");
+    }
+  });
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".free-tables-wrap")) closeAllFreeTablesPopups();
+});
+
 function openDisposizione(turno) {
   dispTurno = turno;
   dispActiveId = null;
@@ -2175,11 +2296,20 @@ function renderDisposizione() {
     const liberi = tables.length - assignedTableCount(items);
     $("#disp-tables-label").textContent = `Tavoli — ${liberi} ${liberi === 1 ? "libero" : "liberi"} su ${tables.length}`;
     $("#disp-tables").innerHTML = tables.map(t => {
-      const owner = items.find(r => parseTavoli(r.tavolo).includes(t));
+      // Un tavolo puo' avere piu' di un occupante nello stesso turno se uno
+      // dei due e' "primo turno" (si libera in tempo per l'altro).
+      const owners = items.filter(r => parseTavoli(r.tavolo).includes(t));
       let cls = "";
       let sub = "";
-      if (owner && owner.id === dispActiveId) { cls = "assigned-active"; sub = "assegnato qui"; }
-      else if (owner) { cls = "assigned-other"; sub = escapeHtml(owner.nome); }
+      if (owners.some(o => o.id === dispActiveId)) {
+        cls = owners.length > 1 ? "assigned-active shared" : "assigned-active";
+        sub = owners.length > 1
+          ? owners.filter(o => o.id !== dispActiveId).map(o => "+ " + escapeHtml(o.nome)).join(", ")
+          : "assegnato qui";
+      } else if (owners.length) {
+        cls = owners.length > 1 ? "assigned-other shared" : "assigned-other";
+        sub = owners.map(o => escapeHtml(o.nome)).join(" + ");
+      }
       return `<button type="button" class="disp-table-chip ${cls}" data-table="${escapeHtml(t)}">${escapeHtml(t)}${sub ? `<span class="dtc-assigned-to">${sub}</span>` : ""}</button>`;
     }).join("");
   }
@@ -2193,11 +2323,16 @@ function renderDisposizione() {
     const tagsHtml = assigned.length
       ? assigned.map(t => `<span class="disp-res-tag">${escapeHtml(t)}</span>`).join("")
       : `<span class="disp-res-tag none">Nessun tavolo</span>`;
+    const posIcon = r.posizione === "dentro" ? "&#127968;" : r.posizione === "fuori" ? "&#9728;&#65039;" : "";
+    const posLabel = r.posizione === "dentro" ? "Dentro" : r.posizione === "fuori" ? "Fuori" : "";
+    const primoIcon = r.primo_turno ? `<span class="disp-res-pos-icon" title="Primo turno">&#128260;</span>` : "";
     return `
       <div class="disp-res-row ${r.id === dispActiveId ? "active" : ""}" data-id="${r.id}">
         <div class="disp-res-main">
           <div class="disp-res-time">${r.orario.slice(0,5)}</div>
           <div class="disp-res-name">${escapeHtml(r.nome)}</div>
+          ${posIcon ? `<span class="disp-res-pos-icon" title="${posLabel}">${posIcon}</span>` : ""}
+          ${primoIcon}
           <div class="disp-res-ospiti">${r.ospiti} osp.</div>
           <div class="disp-res-tables">${tagsHtml}</div>
         </div>
@@ -2225,12 +2360,18 @@ async function toggleTableAssignment(table) {
   const activeTables = parseTavoli(active.tavolo);
 
   if (activeTables.includes(table)) {
+    // Si toglie solo dalla prenotazione attiva: se il tavolo era condiviso
+    // con un'altra prenotazione (primo turno), quell'altra lo mantiene.
     await setTavoloForReservation(dispActiveId, joinTavoli(activeTables.filter(t => t !== table)));
     return;
   }
 
   const owner = dispItems().find(r => r.id !== dispActiveId && parseTavoli(r.tavolo).includes(table));
-  if (owner) {
+  // Se la prenotazione attiva o quella gia' assegnata e' "primo turno", il
+  // tavolo si puo' condividere fra le due (es. chi arriva piu' tardi):
+  // in questo caso non si toglie il tavolo all'altra prenotazione.
+  const canShare = owner && (active.primo_turno || owner.primo_turno);
+  if (owner && !canShare) {
     await setTavoloForReservation(owner.id, joinTavoli(parseTavoli(owner.tavolo).filter(t => t !== table)));
   }
   await setTavoloForReservation(dispActiveId, joinTavoli([...activeTables, table]));
