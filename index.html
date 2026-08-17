@@ -45,14 +45,14 @@
     padding:20px 32px;background:var(--card);border-bottom:1px solid var(--border);
     flex-shrink:0;flex-wrap:wrap;gap:10px;position:relative;z-index:2;
   }
-  .date-nav{display:flex;align-items:center;gap:18px;}
-  .date-nav button{
+  .date-nav{display:flex;align-items:center;gap:18px;flex-wrap:wrap;row-gap:10px;}
+  #prev-day,#next-day{
     width:34px;height:34px;border-radius:50%;border:1px solid var(--border);
     background:transparent;font-size:16px;cursor:pointer;color:var(--muted);
     display:inline-flex;align-items:center;justify-content:center;line-height:1;
     transition:border-color .15s ease, color .15s ease;
   }
-  .date-nav button:active{border-color:var(--text);color:var(--text);}
+  #prev-day:active,#next-day:active{border-color:var(--text);color:var(--text);}
   .date-label{
     font-family:var(--font-display);font-size:28px;font-weight:600;min-width:260px;
     text-align:center;text-transform:capitalize;letter-spacing:.01em;
@@ -66,6 +66,16 @@
   }
   .today-btn:active{border-color:var(--text);color:var(--text);}
   .notes-btn{position:relative;font-size:15px;padding:0 12px;}
+  .sala-toggle-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .sala-toggle-btn{
+    font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    padding:6px 11px;border-radius:1px;cursor:pointer;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    border:1px solid #e3c3ba;color:var(--warn);background:#fbf1ee;
+    transition:background .15s ease,border-color .15s ease,color .15s ease;
+  }
+  .sala-toggle-btn.active{border-color:#c3d2b3;color:var(--ok);background:#eef3e7;}
+  .sala-toggle-btn:active{opacity:.75;}
   .notes-badge{
     position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:50%;
     background:var(--warn);color:#fff;font-size:9.5px;font-weight:700;display:none;
@@ -168,7 +178,7 @@
   }
   .free-tables-btn:active,.free-tables-btn.active{border-color:var(--text);color:var(--text);}
   .free-tables-popup{
-    display:none;position:absolute;top:calc(100% + 12px);left:0;z-index:40;
+    display:none;position:fixed;z-index:40;
     background:var(--card);border:1px solid var(--border);border-radius:2px;box-shadow:var(--shadow-lg);
     padding:14px 16px;min-width:200px;max-width:280px;
   }
@@ -186,6 +196,39 @@
     background:transparent;letter-spacing:.02em;
   }
   .free-tables-empty{color:var(--muted);font-size:12.5px;font-style:italic;margin:0;}
+
+  /* ---------- Cliente di passaggio (walk-in) ---------- */
+  .walkin-wrap{position:relative;display:inline-flex;margin-right:8px;}
+  .walkin-btn{
+    width:34px;height:34px;border-radius:50%;border:1px solid var(--border);font-size:15px;cursor:pointer;
+    color:var(--muted);line-height:1;display:flex;align-items:center;justify-content:center;
+    background:transparent;transition:background .15s ease,color .15s ease,border-color .15s ease;
+  }
+  .walkin-btn:active,.walkin-btn.active{border-color:var(--text);color:var(--text);}
+  .walkin-btn:disabled{opacity:.3;cursor:not-allowed;}
+  .walkin-modal{width:320px;max-width:92vw;max-height:80vh;overflow-y:auto;padding:26px 28px;}
+  .walkin-popup-title{
+    font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;
+    margin-bottom:13px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  }
+  .walkin-back-btn{border:none;background:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0;text-decoration:underline;}
+  .walkin-table-list{display:flex;flex-direction:column;gap:6px;}
+  .walkin-table-row{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);
+    border-radius:1px;padding:9px 12px;background:transparent;cursor:pointer;font-size:13.5px;font-weight:600;
+    color:var(--text);text-align:left;font-family:inherit;transition:border-color .15s ease,background .15s ease;
+  }
+  .walkin-table-row:active{border-color:var(--text);background:#f6f1e6;}
+  .walkin-table-row .wt-hint{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  .walkin-empty{color:var(--muted);font-size:12.5px;font-style:italic;margin:0;}
+  .walkin-selected-table{font-family:var(--font-display);font-size:20px;font-weight:600;margin-bottom:14px;}
+  .walkin-field-label{font-size:10.5px;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em;}
+  .walkin-field{margin-bottom:16px;}
+  .walkin-confirm-btn{width:100%;height:40px;margin-top:4px;}
+  .walkin-confirm-btn:disabled{opacity:.35;cursor:not-allowed;}
+  .walkin-hint{font-size:11px;color:var(--muted);font-style:italic;margin-top:8px;line-height:1.4;}
+  .chip-option:disabled{opacity:.3;cursor:not-allowed;}
+
   .add-btn{
     width:34px;height:34px;border-radius:50%;border:1px solid var(--text);font-size:17px;cursor:pointer;
     color:var(--text);line-height:1;display:flex;align-items:center;justify-content:center;
@@ -204,7 +247,7 @@
   .res-card{
     position:relative;
     background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0;
-    padding:17px 30px 17px 2px;margin-bottom:0;display:flex;align-items:center;gap:16px;cursor:pointer;
+    padding:17px 14px 17px 2px;margin-bottom:0;display:flex;align-items:center;gap:16px;cursor:pointer;
     transition:background .15s ease;
   }
   .res-card:active{background:#f6f1e6;}
@@ -238,17 +281,16 @@
     font-family:var(--font-display);font-size:20px;font-weight:600;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;
   }
-  .res-meta{font-size:12px;color:var(--muted);display:flex;gap:12px;margin-top:3px;flex-wrap:wrap;letter-spacing:.01em;}
+  .res-meta{font-size:12px;color:var(--muted);display:flex;gap:12px;margin-top:3px;flex-wrap:wrap;letter-spacing:.01em;align-items:center;}
   .res-note{font-size:12px;color:var(--muted);font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .wa-btn{
-    display:inline-flex;align-items:center;gap:6px;background:transparent;color:#3f8a52;
-    padding:5px 10px;border:1px solid #bcdcc4;border-radius:1px;font-size:10px;font-weight:700;text-decoration:none;
-    margin-top:8px;text-transform:uppercase;letter-spacing:.06em;
+    display:inline-flex;align-items:center;gap:4px;background:transparent;color:#3f8a52;
+    font-size:12px;font-weight:700;text-decoration:none;letter-spacing:.01em;padding:2px 0;
   }
-  .wa-btn:active{background:#f1f8f2;}
+  .wa-btn:active{opacity:.6;}
   .res-status-mini{
-    position:absolute;right:4px;bottom:6px;width:15px;height:15px;font-size:10px;line-height:1;
-    display:flex;align-items:center;justify-content:center;opacity:.75;
+    display:inline-flex;width:14px;height:14px;font-size:10px;line-height:1;margin-left:6px;
+    align-items:center;justify-content:center;opacity:.8;vertical-align:middle;
   }
   .icon-ok{color:var(--ok);}
   .icon-pending{color:var(--pending);}
@@ -262,6 +304,13 @@
   }
   .arrive-btn:active{border-color:var(--text);opacity:1;}
   .arrive-btn.active{background:#dfe8d2;border-color:var(--ok);opacity:1;}
+  .meal-done-btn{
+    font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--warn);
+    border:1px solid #e3c3ba;border-radius:1px;padding:5px 9px;background:transparent;cursor:pointer;flex-shrink:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    margin-left:8px;white-space:nowrap;
+  }
+  .meal-done-btn:active{background:#fbf1ee;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
   /* ---------- Modal ---------- */
@@ -319,6 +368,16 @@
   .tag-input-row input:focus{outline:none;border-color:var(--text);}
   .tag-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px;min-height:20px;}
   .tag-list:empty::after{content:"Nessun tavolo aggiunto.";color:var(--muted);font-size:12.5px;font-style:italic;}
+  .tavoli-sala-group{margin-bottom:6px;}
+  .tavoli-sala-title{
+    font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text);
+    margin-bottom:9px;display:flex;align-items:center;gap:8px;
+  }
+  .tavoli-sala-tag{
+    font-size:9px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;
+    border:1px solid var(--border);border-radius:1px;padding:2px 7px;
+  }
+  .tavoli-sala-empty{color:var(--muted);font-size:12px;font-style:italic;margin-bottom:22px;display:block;}
   .tag-chip{
     display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:1px;
     padding:6px 6px 6px 12px;font-size:11.5px;letter-spacing:.03em;color:var(--text);background:var(--card);
@@ -557,6 +616,7 @@
       <button id="next-day" aria-label="giorno successivo">&#8250;</button>
       <button class="today-btn" id="today-btn">Oggi</button>
       <button class="today-btn notes-btn" id="notes-btn" aria-label="Note della giornata" title="Note della giornata">&#128221;<span class="notes-badge" id="notes-badge"></span></button>
+      <div class="sala-toggle-row" id="sala-toggle-row"></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span class="status-pill" id="conn-status"><span class="status-dot"></span><span id="conn-label">verifica...</span></span>
@@ -602,6 +662,9 @@
           </span>
         </div>
         <div style="display:flex;align-items:center;">
+          <span class="walkin-wrap">
+            <button type="button" class="walkin-btn" id="walkin-btn-pranzo" data-turno="pranzo" aria-label="Cliente di passaggio" title="Cliente di passaggio (walk-in)">&#128100;</button>
+          </span>
           <button class="toolbar-btn disp-btn" data-turno="pranzo">Disposizione</button>
           <button class="add-btn" data-turno="pranzo">+</button>
         </div>
@@ -620,6 +683,9 @@
           </span>
         </div>
         <div style="display:flex;align-items:center;">
+          <span class="walkin-wrap">
+            <button type="button" class="walkin-btn" id="walkin-btn-cena" data-turno="cena" aria-label="Cliente di passaggio" title="Cliente di passaggio (walk-in)">&#128100;</button>
+          </span>
           <button class="toolbar-btn disp-btn" data-turno="cena">Disposizione</button>
           <button class="add-btn" data-turno="cena">+</button>
         </div>
@@ -719,6 +785,11 @@
     </div>
     <div class="cal-grid" id="cal-grid"></div>
   </div>
+</div>
+
+<!-- Modal Cliente di passaggio (walk-in): sempre centrato a schermo, mai ancorato al pulsante -->
+<div class="overlay" id="walkin-overlay">
+  <div class="modal walkin-modal" id="walkin-modal-body"></div>
 </div>
 
 <!-- Modal Note della giornata: promemoria/cose da fare legate al giorno visualizzato -->
@@ -883,14 +954,44 @@ with check (auth.role() = 'authenticated');
 alter publication supabase_realtime add table note_giorno;</pre>
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se non hai ancora attivato il login (vedi sopra "Accesso protetto da login"), sostituisci la riga "create policy" con una ad accesso libero come per le altre tabelle: <code>using (true) with check (true)</code>. Se il comando "alter publication" da errore "gia presente", va bene cosi.</p>
     </div>
+    <div class="alter-box">
+      <p><b>Novita "Sale per giornata" (Sopra/Cantina/Fuori):</b> i pulsanti accanto alla data che accendono/spengono queste sale occasionali salvano la scelta nel cloud (cosi' resta uguale su tutti i dispositivi). Per attivarlo esegui una sola volta questo script nell'SQL Editor:</p>
+      <pre>create table if not exists sale_giorno (
+  data date primary key,
+  sale text
+);
+
+alter table sale_giorno enable row level security;
+
+create policy "solo utenti autenticati - sale_giorno"
+on sale_giorno for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+
+alter publication supabase_realtime add table sale_giorno;</pre>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se non hai ancora attivato il login, sostituisci la riga "create policy" con <code>using (true) with check (true)</code>. Senza questa tabella i pulsanti Sopra/Cantina/Fuori funzionano comunque, ma solo sul dispositivo su cui li tocchi (non si sincronizzano).</p>
+    </div>
 
     <h2 style="margin-top:30px;">Tavoli del locale</h2>
-    <p>Aggiungi qui l'elenco dei tavoli (o zone) del locale: ti serviranno nella modalita "Crea disposizione" per assegnare i tavoli alle prenotazioni con un tocco.</p>
+    <p>Aggiungi qui l'elenco dei tavoli, ciascuno assegnato alla sua sala: ti serviranno nella modalita "Crea disposizione" per assegnare i tavoli alle prenotazioni con un tocco. Le sale Saletta, Osteria, Negozio e Plastic si usano sempre; Sopra, Cantina e Fuori sono occasionali e si attivano/disattivano giorno per giorno con i pulsanti accanto alla data (rosso = spenta, verde = accesa): quando una sala e' spenta, i suoi tavoli non compaiono in "Tavoli liberi" ne' in "Disposizione".</p>
+    <div class="field">
+      <label>Sala del nuovo tavolo</label>
+      <input type="hidden" id="f-nuovo-tavolo-sala">
+      <div class="chip-select" id="nuovo-tavolo-sala-chip">
+        <button type="button" class="chip-option" data-sala="SOPRA">Sopra</button>
+        <button type="button" class="chip-option" data-sala="SALETTA">Saletta</button>
+        <button type="button" class="chip-option" data-sala="OSTERIA">Osteria</button>
+        <button type="button" class="chip-option" data-sala="CANTINA">Cantina</button>
+        <button type="button" class="chip-option" data-sala="NEGOZIO">Negozio</button>
+        <button type="button" class="chip-option" data-sala="PLASTIC">Plastic</button>
+        <button type="button" class="chip-option" data-sala="FUORI">Fuori</button>
+      </div>
+    </div>
     <div class="tag-input-row">
       <input type="text" id="f-nuovo-tavolo" placeholder="Es. 12, Veranda A..." autocomplete="off">
       <button class="btn btn-secondary" id="add-tavolo-btn" style="height:38px;">Aggiungi</button>
     </div>
-    <div class="tag-list" id="tavoli-tag-list"></div>
+    <div id="tavoli-by-sala"></div>
 
     <h2 style="margin-top:30px;">Utenti</h2>
     <p>Aggiungi qui l'elenco degli utenti: compariranno come tag da toccare in "Inserito da" quando si crea una prenotazione, per sapere sempre chi l'ha presa.</p>
@@ -963,6 +1064,7 @@ function orariPerTurno(turno) {
 const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
 const TABLE = "prenotazioni";
 const NOTE_TABLE = "note_giorno";
+const SALA_TABLE = "sale_giorno";
 let supabaseClient = null;
 let cloudMode = false;
 let realtimeChannel = null;
@@ -1042,6 +1144,12 @@ function subscribeRealtime() {
       await loadNotesForDate();
       renderNotesBadge();
       if ($("#notes-modal").classList.contains("show")) renderNotesModal();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: SALA_TABLE }, async () => {
+      await loadSaleGiorno();
+      renderSalaToggleButtons();
+      render();
+      renderDisposizione();
     })
     .subscribe();
 }
@@ -1234,6 +1342,7 @@ async function lookupClienteAbituale(rawPhone, excludeId) {
 function render() {
   $("#date-label").textContent = formatDateLabel(currentDate);
   renderNotesBadge();
+  renderSalaToggleButtons();
   const key = dateKey(currentDate);
   ["pranzo","cena"].forEach(turno => {
     const items = reservations
@@ -1272,7 +1381,7 @@ function render() {
       <div class="res-card ${r.cancellato ? "cancelled" : ""} ${r.arrivato ? "arrived" : ""}" data-id="${r.id}">
         <div class="res-time">${r.orario.slice(0,5)}</div>
         <div class="res-info">
-          <div class="res-name">${escapeHtml(r.nome)}${r.cancellato ? `<span class="badge-cancelled">Disdetta</span>` : ""}${(!r.cancellato && r.arrivato) ? `<span class="badge-arrived">In sala</span>` : ""}${(!r.cancellato && r.abituale) ? `<span class="badge-abituale">&#11088; Abituale</span>` : ""}</div>
+          <div class="res-name">${escapeHtml(r.nome)}${iconFor(r._status)}${r.cancellato ? `<span class="badge-cancelled">Disdetta</span>` : ""}${(!r.cancellato && r.arrivato) ? `<span class="badge-arrived">In sala</span>` : ""}${(!r.cancellato && r.abituale) ? `<span class="badge-abituale">&#11088; Abituale</span>` : ""}</div>
           <div class="res-meta">
             <span>&#128101; ${r.ospiti} ${r.ospiti == 1 ? "ospite" : "ospiti"}</span>
             ${r.tavolo ? `<span>&#127860; Tavolo ${escapeHtml(r.tavolo)}</span>` : ""}
@@ -1281,20 +1390,24 @@ function render() {
             ${r.primo_turno ? `<span>&#128260; Primo turno</span>` : ""}
             ${r.telefono ? `<span>&#128222; ${escapeHtml(r.telefono)}</span>` : ""}
             ${r.utente ? `<span>&#128100; ${escapeHtml(r.utente)}</span>` : ""}
+            ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">&#128172; Invia conferma</a>` : ""}
           </div>
           ${r.note ? `<div class="res-note">${escapeHtml(r.note)}</div>` : ""}
-          ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">&#128172; Invia conferma</a>` : ""}
         </div>
         ${!r.cancellato ? `<button type="button" class="arrive-btn ${r.arrivato ? "active" : ""}" data-id="${r.id}" title="${r.arrivato ? "Segna come non ancora arrivati" : "Segna come arrivati e seduti"}">&#129681;</button>` : ""}
-        ${iconFor(r._status)}
+        ${(!r.cancellato && r.arrivato && parseTavoli(r.tavolo).length) ? `<button type="button" class="meal-done-btn" data-meal-done-id="${r.id}" title="Libera il tavolo/i quando hanno finito di mangiare">${r.turno === "pranzo" ? "Pranzo finito" : "Cena finita"}</button>` : ""}
       </div>
     `).join("");
   });
   renderWeekStrip();
   updateAddButtonsState();
+  updateWalkinButtonsState();
   ["pranzo", "cena"].forEach(turno => {
     if ($(`#free-tables-popup-${turno}`).classList.contains("show")) renderFreeTablesPopup(turno);
   });
+  if ($("#walkin-overlay").classList.contains("show")) {
+    if (walkinTable) renderWalkinStep2(); else renderWalkinStep1();
+  }
 }
 
 // Non si possono creare nuove prenotazioni per un giorno gia' passato: i
@@ -1315,6 +1428,7 @@ function escapeHtml(s) {
 async function loadForDate() {
   const key = dateKey(currentDate);
   await loadNotesForDate();
+  await loadSaleGiorno();
   if (!cloudMode) {
     if (!demoSeeded) seedDemoData();
     await purgeExpiredCancellations();
@@ -1849,6 +1963,13 @@ document.querySelectorAll(".res-list").forEach(list => {
   list.addEventListener("click", (e) => {
     const arriveBtn = e.target.closest(".arrive-btn");
     if (arriveBtn) { toggleArrivato(arriveBtn.dataset.id); return; }
+    const mealDoneBtn = e.target.closest("[data-meal-done-id]");
+    if (mealDoneBtn) {
+      // "Pranzo finito"/"Cena finita": libera il tavolo/i appena hanno
+      // finito di mangiare, senza dover aprire Disposizione.
+      setTavoloForReservation(mealDoneBtn.dataset.mealDoneId, "");
+      return;
+    }
     const card = e.target.closest(".res-card");
     if (!card) return;
     const r = reservations.find(x => x.id === card.dataset.id);
@@ -2041,9 +2162,17 @@ $("#save-email-backup").addEventListener("click", async () => {
   status.textContent = error ? "Errore nel salvataggio, riprova." : "Salvato.";
 });
 
-/* ---------- Tavoli del locale (tag) ---------- */
-let tables = [];
+/* ---------- Tavoli del locale (tag, raggruppati per sala) ---------- */
+// Sale "sempre attive": nessun pulsante di accensione/spegnimento, i loro
+// tavoli sono sempre visibili. Sale "occasionali": si accendono/spengono
+// giorno per giorno con i pulsanti accanto alla data (vedi piu' sotto).
+const SALE = ["SOPRA", "SALETTA", "OSTERIA", "CANTINA", "NEGOZIO", "PLASTIC", "FUORI"];
+const SALE_SEMPRE_ATTIVE = ["SALETTA", "OSTERIA", "NEGOZIO", "PLASTIC"];
+const SALE_TOGGLE = ["SOPRA", "CANTINA", "FUORI"];
+
+let tables = []; // { nome, sala }
 let tablesDemoSeeded = false;
+let lastTavoloSala = SALE[0];
 
 function parseTavoli(tavoloStr) {
   return (tavoloStr || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -2056,11 +2185,20 @@ async function loadTables() {
   if (cloudMode) {
     const { data, error } = await supabaseClient.from(SETTINGS_TABLE).select("valore").eq("chiave", "tavoli").maybeSingle();
     if (!error && data && data.valore) {
-      try { tables = JSON.parse(data.valore); } catch (e) { tables = []; }
+      try {
+        const parsed = JSON.parse(data.valore);
+        // Compatibilita' con l'elenco vecchio (semplice lista di nomi senza sala).
+        tables = parsed.map(t => (typeof t === "string") ? { nome: t, sala: "" } : t);
+      } catch (e) { tables = []; }
     }
   } else if (!tablesDemoSeeded) {
     tablesDemoSeeded = true;
-    tables = ["1", "2", "3", "4", "5", "6", "7", "8"]; // elenco dimostrativo, solo in modalita demo
+    tables = [
+      { nome: "1", sala: "SALETTA" }, { nome: "2", sala: "SALETTA" },
+      { nome: "3", sala: "OSTERIA" }, { nome: "4", sala: "OSTERIA" },
+      { nome: "5", sala: "NEGOZIO" }, { nome: "6", sala: "PLASTIC" },
+      { nome: "7", sala: "SOPRA" }, { nome: "8", sala: "CANTINA" },
+    ]; // elenco dimostrativo, solo in modalita demo
   }
   renderTagList();
   renderDisposizione();
@@ -2073,33 +2211,78 @@ async function saveTablesToCloud() {
   if (error) console.error("Errore salvataggio elenco tavoli:", error);
 }
 
-function renderTagList() {
-  const list = $("#tavoli-tag-list");
-  if (!list) return;
-  list.innerHTML = tables.map((t, i) => `
-    <span class="tag-chip">${escapeHtml(t)}<button type="button" data-idx="${i}" aria-label="Rimuovi tavolo">&times;</button></span>
-  `).join("");
+function tavoloTagHtml(t) {
+  return `<span class="tag-chip">${escapeHtml(t.nome)}<button type="button" data-nome="${escapeHtml(t.nome)}" aria-label="Rimuovi tavolo">&times;</button></span>`;
 }
+
+function renderTagList() {
+  const container = $("#tavoli-by-sala");
+  if (!container) return;
+  let html = SALE.map(sala => {
+    const inSala = tables.filter(t => t.sala === sala);
+    const pill = SALE_SEMPRE_ATTIVE.includes(sala) ? "" : `<span class="tavoli-sala-tag">occasionale</span>`;
+    return `
+      <div class="tavoli-sala-group">
+        <div class="tavoli-sala-title">${sala}${pill}</div>
+        ${inSala.length
+          ? `<div class="tag-list">${inSala.map(tavoloTagHtml).join("")}</div>`
+          : `<span class="tavoli-sala-empty">Nessun tavolo in questa sala.</span>`}
+      </div>
+    `;
+  }).join("");
+  // Tavoli migrati dal vecchio elenco senza una sala assegnata: restano
+  // sempre visibili (non dipendono da nessun pulsante) finche' non vengono
+  // riassegnati a una sala eliminandoli e riaggiungendoli.
+  const orfani = tables.filter(t => !SALE.includes(t.sala));
+  if (orfani.length) {
+    html += `
+      <div class="tavoli-sala-group">
+        <div class="tavoli-sala-title">Senza sala assegnata</div>
+        <div class="tag-list">${orfani.map(tavoloTagHtml).join("")}</div>
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+}
+
+function setNuovoTavoloSalaChip(value) {
+  lastTavoloSala = value;
+  $("#f-nuovo-tavolo-sala").value = value || "";
+  $("#nuovo-tavolo-sala-chip").querySelectorAll(".chip-option").forEach(b => {
+    b.classList.toggle("selected", b.dataset.sala === value);
+  });
+}
+
+$("#nuovo-tavolo-sala-chip").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip-option");
+  if (!chip) return;
+  setNuovoTavoloSalaChip(chip.dataset.sala);
+});
+setNuovoTavoloSalaChip(lastTavoloSala);
 
 async function addTavolo() {
   const input = $("#f-nuovo-tavolo");
   const value = input.value.trim();
-  if (!value || tables.includes(value)) { input.value = ""; return; }
-  tables.push(value);
+  const sala = $("#f-nuovo-tavolo-sala").value;
+  if (!value) return;
+  if (!sala) { alert("Seleziona prima la sala del tavolo."); return; }
+  if (tables.some(t => t.nome === value)) { input.value = ""; return; }
+  tables.push({ nome: value, sala });
   input.value = "";
   renderTagList();
   renderDisposizione();
   await saveTablesToCloud();
+  setTimeout(() => input.focus(), 30);
 }
 
 $("#add-tavolo-btn").addEventListener("click", addTavolo);
 $("#f-nuovo-tavolo").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); addTavolo(); }
 });
-$("#tavoli-tag-list").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-idx]");
+$("#tavoli-by-sala").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-nome]");
   if (!btn) return;
-  tables.splice(Number(btn.dataset.idx), 1);
+  tables = tables.filter(t => t.nome !== btn.dataset.nome);
   renderTagList();
   renderDisposizione();
   await saveTablesToCloud();
@@ -2207,27 +2390,91 @@ let dispActiveId = null;
 function dispItems() {
   if (!dispTurno) return [];
   const key = dateKey(currentDate);
+  // In Disposizione l'elenco resta SEMPRE in ordine di inserimento (mai per
+  // fascia oraria, e mai per tavolo assegnato o meno): chi prenota prima ha
+  // sempre la precedenza nella scelta dei tavoli migliori, e l'elenco non si
+  // riordina da solo mentre si assegnano i tavoli.
   return reservations
     .filter(r => r.data === key && r.turno === dispTurno && !r.cancellato)
-    .sort((a, b) => a.orario.localeCompare(b.orario));
+    .sort((a, b) => {
+      const ca = a.created_at || "9999-12-31T23:59:59.999Z";
+      const cb = b.created_at || "9999-12-31T23:59:59.999Z";
+      return ca.localeCompare(cb);
+    });
 }
 
-function assignedTableCount(items) {
+function assignedTableCount(items, nameFilter) {
   const set = new Set();
-  items.forEach(r => parseTavoli(r.tavolo).forEach(t => set.add(t)));
+  items.forEach(r => parseTavoli(r.tavolo).forEach(t => {
+    if (!nameFilter || nameFilter.has(t)) set.add(t);
+  }));
   return set.size;
 }
 
+/* ---------- Sale attive per la giornata (Sopra/Cantina/Fuori) ----------
+   Sono le uniche 3 sale "occasionali": si accendono/spengono giorno per
+   giorno con i pulsanti accanto alla data. Le altre 4 sale sono sempre
+   considerate attive, senza bisogno di nessun pulsante. Lo stato e' legato
+   al giorno visualizzato (come le note), non al turno pranzo/cena. */
+let saleGiornoByDate = {}; // cache lato client: { "2026-08-17": ["SOPRA","FUORI"], ... }
+
+function isSalaVisibleToday(sala) {
+  if (!sala || !SALE.includes(sala)) return true; // tavoli senza sala (dati vecchi) sempre visibili
+  if (!SALE_TOGGLE.includes(sala)) return true; // sala sempre attiva
+  return (saleGiornoByDate[dateKey(currentDate)] || []).includes(sala);
+}
+
+function visibleTables() {
+  return tables.filter(t => isSalaVisibleToday(t.sala));
+}
+
+async function loadSaleGiorno() {
+  const key = dateKey(currentDate);
+  if (!cloudMode) return; // in modalita demo resta quanto gia' impostato in questa sessione
+  const { data, error } = await supabaseClient.from(SALA_TABLE).select("sale").eq("data", key).maybeSingle();
+  if (error) { console.error("Errore caricamento sale del giorno:", error); return; }
+  saleGiornoByDate[key] = (data && data.sale) ? String(data.sale).split(",").filter(Boolean) : [];
+}
+
+function renderSalaToggleButtons() {
+  const active = saleGiornoByDate[dateKey(currentDate)] || [];
+  $("#sala-toggle-row").innerHTML = SALE_TOGGLE.map(sala => `
+    <button type="button" class="sala-toggle-btn ${active.includes(sala) ? "active" : ""}" data-sala="${sala}">${sala}</button>
+  `).join("");
+}
+
+async function toggleSalaGiorno(sala) {
+  const key = dateKey(currentDate);
+  const current = saleGiornoByDate[key] || [];
+  const next = current.includes(sala) ? current.filter(s => s !== sala) : [...current, sala];
+  saleGiornoByDate[key] = next;
+  renderSalaToggleButtons();
+  render(); // aggiorna "Tavoli liberi" (popup) e Disposizione se aperti, in base ai tavoli ora visibili/nascosti
+  renderDisposizione();
+  if (cloudMode) {
+    const { error } = await supabaseClient.from(SALA_TABLE).upsert({ data: key, sale: next.join(",") }, { onConflict: "data" });
+    if (error) console.error("Errore salvataggio sale del giorno:", error);
+  }
+}
+
+$("#sala-toggle-row").addEventListener("click", (e) => {
+  const btn = e.target.closest(".sala-toggle-btn");
+  if (!btn) return;
+  toggleSalaGiorno(btn.dataset.sala);
+});
+
 /* ---------- Popup "Tavoli liberi" (accanto a Pranzo/Cena) ----------
    Mostra, senza dover aprire "Disposizione", quali tavoli non sono ancora
-   stati assegnati a nessuna prenotazione di quel turno/giorno. */
+   stati assegnati a nessuna prenotazione di quel turno/giorno. I tavoli
+   delle sale spente per oggi non compaiono mai qui. */
 function freeTablesForTurno(turno) {
-  if (!tables.length) return [];
+  const vTables = visibleTables();
+  if (!vTables.length) return [];
   const key = dateKey(currentDate);
   const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
   const assigned = new Set();
   items.forEach(r => parseTavoli(r.tavolo).forEach(t => assigned.add(t)));
-  return tables.filter(t => !assigned.has(t));
+  return vTables.filter(t => !assigned.has(t.nome)).map(t => t.nome);
 }
 
 function renderFreeTablesPopup(turno) {
@@ -2237,13 +2484,31 @@ function renderFreeTablesPopup(turno) {
     popup.innerHTML = `<div class="free-tables-popup-title">Tavoli liberi</div><p class="free-tables-empty">Nessun tavolo configurato: aggiungilo dalle Impostazioni.</p>`;
     return;
   }
+  const vTables = visibleTables();
+  if (!vTables.length) {
+    popup.innerHTML = `<div class="free-tables-popup-title">Tavoli liberi</div><p class="free-tables-empty">Nessuna sala attiva per oggi: accendi Sopra/Cantina/Fuori qui sopra, oppure configura tavoli in Saletta/Osteria/Negozio/Plastic.</p>`;
+    return;
+  }
   const free = freeTablesForTurno(turno);
   popup.innerHTML = `
-    <div class="free-tables-popup-title">Tavoli liberi — ${free.length} su ${tables.length}</div>
+    <div class="free-tables-popup-title">Tavoli liberi — ${free.length} su ${vTables.length}</div>
     ${free.length
       ? `<div class="free-tables-popup-list">${free.map(t => `<span class="free-tables-chip">${escapeHtml(t)}</span>`).join("")}</div>`
       : `<p class="free-tables-empty">Nessun tavolo libero per questo turno.</p>`}
   `;
+}
+
+// I popup "a nuvoletta" (Tavoli liberi, Cliente di passaggio) si spostano
+// come figli diretti di <body> e si posizionano con coordinate calcolate dal
+// pulsante che li apre: i pannelli Pranzo/Cena hanno "overflow:hidden" (per
+// contenere correttamente lo scroll interno dell'elenco prenotazioni), che
+// altrimenti ritaglierebbe via questi popup rendendoli invisibili/non
+// cliccabili pur essendo tecnicamente presenti nella pagina.
+function positionFixedPopup(popup, btn) {
+  if (popup.parentElement !== document.body) document.body.appendChild(popup);
+  const rect = btn.getBoundingClientRect();
+  popup.style.top = (rect.bottom + 12) + "px";
+  popup.style.left = rect.left + "px";
 }
 
 function closeAllFreeTablesPopups() {
@@ -2262,13 +2527,222 @@ document.querySelectorAll(".free-tables-btn").forEach(btn => {
     closeAllFreeTablesPopups();
     if (!wasOpen) {
       renderFreeTablesPopup(turno);
+      positionFixedPopup(popup, btn);
       popup.classList.add("show");
       btn.classList.add("active");
     }
   });
 });
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".free-tables-wrap")) closeAllFreeTablesPopups();
+  if (!e.target.closest(".free-tables-wrap") && !e.target.closest(".free-tables-popup")) closeAllFreeTablesPopups();
+});
+
+/* ---------- Cliente di passaggio (walk-in) ----------
+   Permette di aggiungere in pochi tocchi un cliente arrivato senza
+   prenotazione: si tocca un tavolo disponibile (libero, oppure gia'
+   occupato da un solo "Primo turno" e quindi condivisibile per il "Secondo
+   turno"), poi il tipo di occupazione e il numero di ospiti. Disponibile
+   solo per la giornata di oggi: un walk-in, per definizione, arriva adesso. */
+let walkinTurno = null;
+let walkinTable = null;
+let walkinMode = null;   // "free" | "secondo"
+let walkinTipo = null;   // "unico" | "primo" | "secondo"
+let walkinOspiti = null;
+const WALKIN_OSPITI_CHIPS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+
+function isTodayView() {
+  return dateKey(currentDate) === dateKey(new Date());
+}
+
+function updateWalkinButtonsState() {
+  const disabled = !isTodayView();
+  document.querySelectorAll(".walkin-btn").forEach(btn => {
+    btn.disabled = disabled;
+    btn.title = disabled ? "Disponibile solo per la giornata di oggi" : "Cliente di passaggio (walk-in)";
+  });
+}
+
+// Tavoli che si possono proporre per un walk-in in un turno:
+// - del tutto liberi (nessuna prenotazione): assegnabili come "Turno unico"
+//   o "Primo turno";
+// - gia' occupati da UNA SOLA prenotazione "Primo turno": assegnabili SOLO
+//   come "Secondo turno", condividendo il tavolo senza sfrattare nessuno;
+// - gia' occupati da UNA SOLA prenotazione normale (es. un tavolo prenotato
+//   piu' tardi, alle 21:00): assegnabili SOLO come "Primo turno", perche' il
+//   walk-in arriva prima e dovra' liberare il tavolo in tempo per chi ha gia'
+//   prenotato.
+// Orari "da ultimo turno": un tavolo prenotato (in modo normale, non "primo
+// turno") solo a una di queste ore e' abbastanza tardi da poter comunque
+// essere proposto per un walk-in nel frattempo, come "Primo turno".
+const WALKIN_PRIMO_ONLY_ORARI = ["21:00", "21:30"];
+
+function walkInSelectableTables(turno) {
+  const vTables = visibleTables();
+  const key = dateKey(currentDate);
+  const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
+  const out = [];
+  vTables.forEach(t => {
+    const owners = items.filter(r => parseTavoli(r.tavolo).includes(t.nome));
+    if (owners.length === 0) out.push({ nome: t.nome, mode: "free" });
+    else if (owners.length === 1 && owners[0].primo_turno) out.push({ nome: t.nome, mode: "secondo" });
+    else if (owners.length === 1 && !owners[0].primo_turno && WALKIN_PRIMO_ONLY_ORARI.includes((owners[0].orario || "").slice(0, 5))) {
+      out.push({ nome: t.nome, mode: "primo_only" });
+    }
+  });
+  return out;
+}
+
+function closeAllWalkinPopups() {
+  $("#walkin-overlay").classList.remove("show");
+  ["pranzo", "cena"].forEach(turno => {
+    $(`#walkin-btn-${turno}`).classList.remove("active");
+  });
+  walkinTurno = null;
+  walkinTable = null;
+  walkinMode = null;
+  walkinTipo = null;
+  walkinOspiti = null;
+}
+
+// Il popup e' un unico modale condiviso, sempre centrato a schermo (mai
+// ancorato al pulsante che lo apre): su tablet il pulsante puo' trovarsi
+// vicino al bordo, e un popup "a tendina" ancorato finirebbe fuori schermo.
+function openWalkinPopup(turno) {
+  walkinTurno = turno;
+  walkinTable = null;
+  walkinMode = null;
+  walkinTipo = null;
+  walkinOspiti = null;
+  renderWalkinStep1();
+  $("#walkin-overlay").classList.add("show");
+  $(`#walkin-btn-${turno}`).classList.add("active");
+}
+
+function renderWalkinStep1() {
+  const turno = walkinTurno;
+  const modal = $("#walkin-modal-body");
+  if (!modal) return;
+  const selectable = walkInSelectableTables(turno);
+  modal.innerHTML = `
+    <div class="walkin-popup-title">Cliente di passaggio</div>
+    ${selectable.length
+      ? `<div class="walkin-table-list">${selectable.map(t => `
+          <button type="button" class="walkin-table-row" data-table="${escapeHtml(t.nome)}" data-mode="${t.mode}">
+            <span>${escapeHtml(t.nome)}</span>
+            ${t.mode === "secondo" ? `<span class="wt-hint">2&deg; turno</span>` : ""}
+            ${t.mode === "primo_only" ? `<span class="wt-hint">Prenotato piu' tardi</span>` : ""}
+          </button>
+        `).join("")}</div>`
+      : `<p class="walkin-empty">Nessun tavolo disponibile al momento per questo turno.</p>`}
+  `;
+}
+
+function renderWalkinStep2() {
+  const modal = $("#walkin-modal-body");
+  if (!modal) return;
+  const tipoOptions = [
+    { key: "unico", label: "Turno unico" },
+    { key: "primo", label: "Primo turno" },
+    { key: "secondo", label: "Secondo turno" },
+  ];
+  modal.innerHTML = `
+    <div class="walkin-popup-title"><button type="button" class="walkin-back-btn" id="walkin-back-btn">&larr; Cambia tavolo</button></div>
+    <div class="walkin-selected-table">Tavolo ${escapeHtml(walkinTable)}</div>
+    <div class="walkin-field">
+      <div class="walkin-field-label">Tipo di occupazione</div>
+      <div class="chip-select" id="walkin-tipo-chip">
+        ${tipoOptions.map(o => {
+          // Su un tavolo libero ha senso solo "Turno unico"/"Primo turno"; su
+          // un tavolo gia' occupato da un "Primo turno" ha senso solo
+          // "Secondo turno" (si condivide, non si sfratta nessuno); su un
+          // tavolo gia' prenotato piu' tardi da una prenotazione normale ha
+          // senso solo "Primo turno" (il walk-in arriva prima e dovra'
+          // liberare il tavolo in tempo).
+          const enabled =
+            walkinMode === "secondo" ? (o.key === "secondo") :
+            walkinMode === "primo_only" ? (o.key === "primo") :
+            (o.key !== "secondo");
+          return `<button type="button" class="chip-option ${walkinTipo === o.key ? "selected" : ""}" data-tipo="${o.key}" ${enabled ? "" : "disabled"}>${o.label}</button>`;
+        }).join("")}
+      </div>
+      ${walkinMode === "free" ? `<p class="walkin-hint">"Secondo turno" si attiva solo sui tavoli gia' occupati da una prenotazione con "Primo turno" impostato (lo trovi nel modulo di modifica prenotazione, o creando qui il walk-in come "Primo turno").</p>` : ""}
+      ${walkinMode === "primo_only" ? `<p class="walkin-hint">Questo tavolo ha gia' una prenotazione piu' tardi oggi: puoi assegnarlo solo come "Primo turno", cosi' sai che va liberato in tempo.</p>` : ""}
+    </div>
+    <div class="walkin-field">
+      <div class="walkin-field-label">Numero ospiti</div>
+      <div class="chip-select" id="walkin-ospiti-chip">
+        ${WALKIN_OSPITI_CHIPS.map(v => `<button type="button" class="chip-option ${walkinOspiti === v ? "selected" : ""}" data-ospiti="${v}">${v}</button>`).join("")}
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary walkin-confirm-btn" id="walkin-confirm-btn" ${(walkinTipo && walkinOspiti) ? "" : "disabled"}>Aggiungi</button>
+  `;
+}
+
+function selectWalkinTable(nome, mode) {
+  walkinTable = nome;
+  walkinMode = mode;
+  // Su un tavolo condiviso ("secondo") o gia' prenotato piu' tardi
+  // ("primo_only") c'e' un'unica scelta possibile: la pre-selezioniamo.
+  walkinTipo = (mode === "secondo") ? "secondo" : (mode === "primo_only") ? "primo" : null;
+  walkinOspiti = null;
+  renderWalkinStep2();
+}
+
+async function confirmWalkin() {
+  if (!walkinTipo || !walkinOspiti || !walkinTable || !walkinTurno) return;
+  const now = new Date();
+  const orario = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:00`;
+  const payload = {
+    data: dateKey(currentDate),
+    turno: walkinTurno,
+    nome: "Cliente di passaggio",
+    orario,
+    ospiti: Number(walkinOspiti),
+    tavolo: walkinTable,
+    posizione: "",
+    telefono: "",
+    note: "",
+    utente: lastEmployee || "",
+    abituale: false,
+    primo_turno: walkinTipo === "primo",
+    arrivato: true, // e' gia' fisicamente presente
+  };
+  closeAllWalkinPopups();
+  const tempId = cryptoId();
+  reservations.push({ id: tempId, ...payload, _status: "pending" });
+  render();
+  renderDisposizione();
+  await persist(tempId, payload, false);
+  renderDisposizione();
+}
+
+document.querySelectorAll(".walkin-btn").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (btn.disabled) return;
+    const turno = btn.dataset.turno;
+    const wasOpenSameTurno = $("#walkin-overlay").classList.contains("show") && walkinTurno === turno;
+    closeAllWalkinPopups();
+    if (!wasOpenSameTurno) openWalkinPopup(turno);
+  });
+});
+// Click sullo sfondo scuro (fuori dalla scheda centrale) chiude il modale,
+// come gli altri modali dell'app (es. #res-modal).
+$("#walkin-overlay").addEventListener("click", (e) => {
+  if (e.target === $("#walkin-overlay")) closeAllWalkinPopups();
+});
+$("#walkin-modal-body").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const tableRow = e.target.closest(".walkin-table-row");
+  if (tableRow) { selectWalkinTable(tableRow.dataset.table, tableRow.dataset.mode); return; }
+  const backBtn = e.target.closest("#walkin-back-btn");
+  if (backBtn) { renderWalkinStep1(); return; }
+  const tipoChip = e.target.closest("#walkin-tipo-chip .chip-option");
+  if (tipoChip && !tipoChip.disabled) { walkinTipo = tipoChip.dataset.tipo; renderWalkinStep2(); return; }
+  const ospitiChip = e.target.closest("#walkin-ospiti-chip .chip-option");
+  if (ospitiChip) { walkinOspiti = ospitiChip.dataset.ospiti; renderWalkinStep2(); return; }
+  const confirmBtn = e.target.closest("#walkin-confirm-btn");
+  if (confirmBtn && !confirmBtn.disabled) { confirmWalkin(); return; }
 });
 
 function openDisposizione(turno) {
@@ -2289,16 +2763,22 @@ function renderDisposizione() {
   const items = dispItems();
   $("#disp-title").textContent = `Disposizione — ${dispTurno === "pranzo" ? "Pranzo" : "Cena"}`;
 
+  const vTables = visibleTables();
   if (!tables.length) {
     $("#disp-tables-label").textContent = "Tavoli";
     $("#disp-tables").innerHTML = `<div class="disp-empty-tables">Nessun tavolo configurato: aggiungilo dalle Impostazioni (icona ingranaggio in alto).</div>`;
+  } else if (!vTables.length) {
+    $("#disp-tables-label").textContent = "Tavoli";
+    $("#disp-tables").innerHTML = `<div class="disp-empty-tables">Nessuna sala attiva per oggi: accendi Sopra/Cantina/Fuori qui sopra, oppure configura tavoli in Saletta/Osteria/Negozio/Plastic.</div>`;
   } else {
-    const liberi = tables.length - assignedTableCount(items);
-    $("#disp-tables-label").textContent = `Tavoli — ${liberi} ${liberi === 1 ? "libero" : "liberi"} su ${tables.length}`;
-    $("#disp-tables").innerHTML = tables.map(t => {
+    const vNames = new Set(vTables.map(t => t.nome));
+    const liberi = vTables.length - assignedTableCount(items, vNames);
+    $("#disp-tables-label").textContent = `Tavoli — ${liberi} ${liberi === 1 ? "libero" : "liberi"} su ${vTables.length}`;
+    $("#disp-tables").innerHTML = vTables.map(t => {
+      const nome = t.nome;
       // Un tavolo puo' avere piu' di un occupante nello stesso turno se uno
       // dei due e' "primo turno" (si libera in tempo per l'altro).
-      const owners = items.filter(r => parseTavoli(r.tavolo).includes(t));
+      const owners = items.filter(r => parseTavoli(r.tavolo).includes(nome));
       let cls = "";
       let sub = "";
       if (owners.some(o => o.id === dispActiveId)) {
@@ -2310,7 +2790,7 @@ function renderDisposizione() {
         cls = owners.length > 1 ? "assigned-other shared" : "assigned-other";
         sub = owners.map(o => escapeHtml(o.nome)).join(" + ");
       }
-      return `<button type="button" class="disp-table-chip ${cls}" data-table="${escapeHtml(t)}">${escapeHtml(t)}${sub ? `<span class="dtc-assigned-to">${sub}</span>` : ""}</button>`;
+      return `<button type="button" class="disp-table-chip ${cls}" data-table="${escapeHtml(nome)}">${escapeHtml(nome)}${sub ? `<span class="dtc-assigned-to">${sub}</span>` : ""}</button>`;
     }).join("");
   }
 
