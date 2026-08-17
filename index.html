@@ -65,6 +65,13 @@
     transition:border-color .15s ease, color .15s ease;
   }
   .today-btn:active{border-color:var(--text);color:var(--text);}
+  .notes-btn{position:relative;font-size:15px;padding:0 12px;}
+  .notes-badge{
+    position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:50%;
+    background:var(--warn);color:#fff;font-size:9.5px;font-weight:700;display:none;
+    align-items:center;justify-content:center;line-height:1;
+  }
+  .notes-badge.show{display:inline-flex;}
   .status-pill{
     display:inline-flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted);
     padding:8px 13px;border-radius:1px;background:transparent;border:1px solid var(--border);
@@ -407,6 +414,32 @@
   .cal-cell.today .cal-day-coperti{color:var(--pranzo);}
   .cal-cell.selected .cal-day-coperti{color:var(--card);opacity:.75;}
 
+  /* ---------- Note della giornata (promemoria/cose da fare) ---------- */
+  #notes-modal .modal{width:440px;padding:30px 32px;}
+  .notes-sub{font-size:12px;color:var(--muted);margin:-14px 0 18px;line-height:1.5;}
+  .notes-add-row{display:flex;gap:8px;margin-bottom:18px;}
+  .notes-add-row input{
+    flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:1px;
+    font-size:14px;background:transparent;font-family:inherit;
+  }
+  .notes-add-row input:focus{outline:none;border-color:var(--text);}
+  .notes-list{display:flex;flex-direction:column;gap:2px;max-height:44vh;overflow-y:auto;}
+  .notes-empty{color:var(--muted);font-size:13px;font-style:italic;margin:8px 0 0;}
+  .note-row{
+    display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--border);
+  }
+  .note-row:last-child{border-bottom:none;}
+  .note-check{
+    width:24px;height:24px;flex-shrink:0;border-radius:50%;border:1.5px solid var(--border);background:transparent;
+    cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:13px;color:var(--card);
+    transition:all .12s ease;
+  }
+  .note-row.done .note-check{background:var(--ok);border-color:var(--ok);}
+  .note-text{flex:1;font-size:14.5px;word-break:break-word;}
+  .note-row.done .note-text{color:var(--muted);text-decoration:line-through;}
+  .note-delete{border:none;background:none;color:var(--muted);cursor:pointer;font-size:19px;line-height:1;padding:2px 4px;flex-shrink:0;}
+  .note-delete:active{color:var(--warn);}
+
   /* ---------- Vista mobile scarna (schermi stretti) ----------
      Pensata per l'uso occasionale fuori dal ristorante (es. aggiungere
      al volo una prenotazione ricevuta per telefono): nasconde gli
@@ -490,6 +523,7 @@
       <div class="date-label" id="date-label">--</div>
       <button id="next-day" aria-label="giorno successivo">&#8250;</button>
       <button class="today-btn" id="today-btn">Oggi</button>
+      <button class="today-btn notes-btn" id="notes-btn" aria-label="Note della giornata" title="Note della giornata">&#128221;<span class="notes-badge" id="notes-badge"></span></button>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span class="status-pill" id="conn-status"><span class="status-dot"></span><span id="conn-label">verifica...</span></span>
@@ -640,6 +674,23 @@
   </div>
 </div>
 
+<!-- Modal Note della giornata: promemoria/cose da fare legate al giorno visualizzato -->
+<div class="overlay" id="notes-modal">
+  <div class="modal">
+    <h2 id="notes-modal-title">Note</h2>
+    <p class="notes-sub">Promemoria per il giorno visualizzato (es. "Ordinare il pane", "Chiamare tecnico lavastoviglie").</p>
+    <div class="notes-add-row">
+      <input type="text" id="f-nuova-nota" placeholder="Aggiungi una nota..." autocomplete="off">
+      <button class="btn btn-secondary" id="add-nota-btn" style="height:38px;">Aggiungi</button>
+    </div>
+    <div class="notes-list" id="notes-list"></div>
+    <div class="modal-actions">
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" id="notes-close-btn">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Crea disposizione: assegnazione tavoli -->
 <div class="overlay" id="disposizione-modal">
   <div class="modal">
@@ -760,6 +811,26 @@ with check (auth.role() = 'authenticated');</pre>
       <pre>alter publication supabase_realtime add table prenotazioni;</pre>
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">In alternativa, dalla dashboard: <b>Database &rarr; Replication</b>, e attiva l'interruttore sulla riga "prenotazioni". Se il comando qui sopra da errore "gia presente" (already member), va bene cosi: significa che era gia attivo.</p>
     </div>
+    <div class="alter-box">
+      <p><b>Novita "Note della giornata":</b> il pulsante &#128221; accanto a "Oggi" apre un elenco di promemoria/cose da fare legate al giorno visualizzato (es. "Ordinare il pane"). Per attivarlo esegui una sola volta questo script nell'SQL Editor (crea la tabella dedicata e attiva subito anche la sincronizzazione in tempo reale fra dispositivi):</p>
+      <pre>create table if not exists note_giorno (
+  id uuid primary key default gen_random_uuid(),
+  data date not null,
+  testo text not null,
+  fatto boolean not null default false,
+  created_at timestamptz default now()
+);
+
+alter table note_giorno enable row level security;
+
+create policy "solo utenti autenticati - note_giorno"
+on note_giorno for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+
+alter publication supabase_realtime add table note_giorno;</pre>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se non hai ancora attivato il login (vedi sopra "Accesso protetto da login"), sostituisci la riga "create policy" con una ad accesso libero come per le altre tabelle: <code>using (true) with check (true)</code>. Se il comando "alter publication" da errore "gia presente", va bene cosi.</p>
+    </div>
 
     <h2 style="margin-top:30px;">Tavoli del locale</h2>
     <p>Aggiungi qui l'elenco dei tavoli (o zone) del locale: ti serviranno nella modalita "Crea disposizione" per assegnare i tavoli alle prenotazioni con un tocco.</p>
@@ -839,6 +910,7 @@ function orariPerTurno(turno) {
 
 const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
 const TABLE = "prenotazioni";
+const NOTE_TABLE = "note_giorno";
 let supabaseClient = null;
 let cloudMode = false;
 let realtimeChannel = null;
@@ -914,6 +986,11 @@ function subscribeRealtime() {
     .on("postgres_changes", { event: "*", schema: "public", table: TABLE }, () => {
       loadForDate();
     })
+    .on("postgres_changes", { event: "*", schema: "public", table: NOTE_TABLE }, async () => {
+      await loadNotesForDate();
+      renderNotesBadge();
+      if ($("#notes-modal").classList.contains("show")) renderNotesModal();
+    })
     .subscribe();
 }
 
@@ -967,6 +1044,8 @@ async function doLogout() {
 // stato in memoria: { id, data, turno, nome, orario, ospiti, tavolo, telefono, note, _status }
 // _status: 'ok' | 'pending' | 'error'
 let reservations = [];
+// note (promemoria/cose da fare) legate al giorno visualizzato: { id, data, testo, fatto, _status }
+let notesGiorno = [];
 let currentDate = new Date();
 let demoSeeded = false;
 let viewMode = "both";
@@ -1102,6 +1181,7 @@ async function lookupClienteAbituale(rawPhone, excludeId) {
 
 function render() {
   $("#date-label").textContent = formatDateLabel(currentDate);
+  renderNotesBadge();
   const key = dateKey(currentDate);
   ["pranzo","cena"].forEach(turno => {
     const items = reservations
@@ -1178,6 +1258,7 @@ function escapeHtml(s) {
 
 async function loadForDate() {
   const key = dateKey(currentDate);
+  await loadNotesForDate();
   if (!cloudMode) {
     if (!demoSeeded) seedDemoData();
     await purgeExpiredCancellations();
@@ -1238,6 +1319,106 @@ function seedDemoData() {
 function cryptoId() {
   return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
+
+/* ---------- Note della giornata (promemoria/cose da fare) ----------
+   Legate al giorno visualizzato, come le prenotazioni: si possono quindi
+   preparare promemoria anche per un giorno futuro navigando in avanti.
+   In modalita demo restano solo in memoria per la sessione corrente. */
+async function loadNotesForDate() {
+  const key = dateKey(currentDate);
+  if (!cloudMode) return;
+  const { data, error } = await supabaseClient.from(NOTE_TABLE).select("*").eq("data", key);
+  if (error) { console.error("Errore caricamento note:", error); return; }
+  const others = notesGiorno.filter(n => n.data !== key);
+  notesGiorno = others.concat(data.map(n => ({...n, _status:"ok"})));
+}
+
+function renderNotesBadge() {
+  const key = dateKey(currentDate);
+  const count = notesGiorno.filter(n => n.data === key && !n.fatto).length;
+  const badge = $("#notes-badge");
+  badge.textContent = count > 0 ? String(count) : "";
+  badge.classList.toggle("show", count > 0);
+}
+
+function renderNotesModal() {
+  $("#notes-modal-title").textContent = "Note — " + formatDateLabel(currentDate);
+  const key = dateKey(currentDate);
+  const list = notesGiorno
+    .filter(n => n.data === key)
+    .sort((a, b) => (a.fatto === b.fatto) ? 0 : (a.fatto ? 1 : -1));
+  $("#notes-list").innerHTML = list.length ? list.map(n => `
+    <div class="note-row ${n.fatto ? "done" : ""}" data-id="${n.id}">
+      <button type="button" class="note-check" aria-label="Segna come fatto">${n.fatto ? "&#10003;" : ""}</button>
+      <div class="note-text">${escapeHtml(n.testo)}</div>
+      <button type="button" class="note-delete" aria-label="Elimina nota">&times;</button>
+    </div>
+  `).join("") : `<p class="notes-empty">Nessuna nota per questo giorno.</p>`;
+}
+
+async function addNoteGiorno() {
+  const input = $("#f-nuova-nota");
+  const testo = input.value.trim();
+  if (!testo) return;
+  const key = dateKey(currentDate);
+  const localId = cryptoId();
+  const note = { id: localId, data: key, testo, fatto: false, _status: cloudMode ? "pending" : "ok" };
+  notesGiorno.push(note);
+  input.value = "";
+  renderNotesModal();
+  renderNotesBadge();
+  setTimeout(() => input.focus(), 30);
+  if (cloudMode) {
+    const { data, error } = await supabaseClient.from(NOTE_TABLE).insert({ data: key, testo, fatto: false }).select().single();
+    if (error) {
+      console.error("Errore salvataggio nota:", error);
+      notesGiorno = notesGiorno.filter(n => n.id !== localId);
+      renderNotesModal();
+      renderNotesBadge();
+      return;
+    }
+    Object.assign(note, data, { _status: "ok" });
+  }
+}
+
+async function toggleNoteGiorno(id) {
+  const n = notesGiorno.find(x => x.id === id);
+  if (!n) return;
+  n.fatto = !n.fatto;
+  renderNotesModal();
+  renderNotesBadge();
+  if (cloudMode) {
+    const { error } = await supabaseClient.from(NOTE_TABLE).update({ fatto: n.fatto }).eq("id", id);
+    if (error) console.error("Errore aggiornamento nota:", error);
+  }
+}
+
+async function deleteNoteGiorno(id) {
+  notesGiorno = notesGiorno.filter(n => n.id !== id);
+  renderNotesModal();
+  renderNotesBadge();
+  if (cloudMode) {
+    const { error } = await supabaseClient.from(NOTE_TABLE).delete().eq("id", id);
+    if (error) console.error("Errore eliminazione nota:", error);
+  }
+}
+
+$("#notes-btn").addEventListener("click", () => {
+  renderNotesModal();
+  $("#notes-modal").classList.add("show");
+  setTimeout(() => $("#f-nuova-nota").focus(), 50);
+});
+$("#notes-close-btn").addEventListener("click", () => $("#notes-modal").classList.remove("show"));
+$("#notes-modal").addEventListener("click", (e) => { if (e.target.id === "notes-modal") $("#notes-modal").classList.remove("show"); });
+$("#add-nota-btn").addEventListener("click", addNoteGiorno);
+$("#f-nuova-nota").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addNoteGiorno(); } });
+$("#notes-list").addEventListener("click", (e) => {
+  const row = e.target.closest(".note-row");
+  if (!row) return;
+  const id = row.dataset.id;
+  if (e.target.closest(".note-check")) { toggleNoteGiorno(id); return; }
+  if (e.target.closest(".note-delete")) { deleteNoteGiorno(id); return; }
+});
 
 /* ---------- Vista singola / doppia ---------- */
 function setViewMode(mode) {
@@ -1539,6 +1720,7 @@ function openNewModal(turno) {
     alert("Non e' possibile creare nuove prenotazioni per una data gia' passata.");
     return;
   }
+  modalIsNew = true;
   $("#modal-title").textContent = "Nuova prenotazione";
   $("#f-id").value = "";
   $("#f-turno").value = turno;
@@ -1559,6 +1741,7 @@ function openNewModal(turno) {
 }
 
 function openEditModal(r) {
+  modalIsNew = false;
   $("#modal-title").textContent = "Modifica prenotazione";
   $("#f-id").value = r.id;
   $("#f-turno").value = r.turno;
@@ -1580,10 +1763,16 @@ function openEditModal(r) {
   refreshPhoneStatus();
 }
 
+let modalIsNew = false;
 function closeModal() { resModal.classList.remove("show"); }
 
 $("#cancel-btn").addEventListener("click", closeModal);
-resModal.addEventListener("click", (e) => { if (e.target === resModal) closeModal(); });
+resModal.addEventListener("click", (e) => {
+  // Per una NUOVA prenotazione, il click fuori dalla finestra non la chiude piu':
+  // evita di perdere per sbaglio i dati inseriti con un tocco accidentale sullo sfondo.
+  // Per la MODIFICA di una prenotazione esistente il comportamento resta invariato.
+  if (e.target === resModal && !modalIsNew) closeModal();
+});
 
 document.querySelectorAll(".add-btn").forEach(btn => {
   btn.addEventListener("click", () => openNewModal(btn.dataset.turno));
