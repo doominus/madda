@@ -169,6 +169,14 @@
   #demo-banner.show{display:block;}
   #demo-banner code{background:#fff;padding:1px 6px;border-radius:1px;border:1px solid #ecdfc0;}
 
+  /* ---------- Banner offline / sincronizzazione ---------- */
+  #offline-banner{
+    display:none;background:#fbeae5;color:#7a3a28;padding:9px 22px;font-size:12px;font-weight:600;
+    border-bottom:1px solid var(--border);text-align:center;flex-shrink:0;letter-spacing:.01em;
+  }
+  #offline-banner.show{display:block;}
+  #offline-banner.syncing{background:#f7f0e4;color:#7a5b2e;}
+
   /* ---------- Main split view ---------- */
   main{flex:1;display:flex;overflow:hidden;}
   main.view-pranzo .panel[data-turno="cena"]{display:none;}
@@ -274,6 +282,7 @@
   .icon-ok{color:var(--ok);}
   .icon-pending{color:var(--pending);}
   .icon-warn{color:var(--warn);}
+  .icon-queued{color:var(--pending);}
   .spin{animation:spin 1s linear infinite;}
   .arrive-btn{
     width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:transparent;
@@ -623,6 +632,7 @@
   <div id="demo-banner">
     Modalita demo: le prenotazioni non vengono salvate nel cloud. Tocca l'icona ingranaggio in alto a destra per collegare il database online.
   </div>
+  <div id="offline-banner"></div>
 
   <main class="view-both">
     <section class="panel" data-turno="pranzo">
@@ -1092,6 +1102,244 @@ let supabaseClient = null;
 let cloudMode = false;
 let realtimeChannel = null;
 
+/* =========================================================================
+   OFFLINE-FIRST: salvataggio locale + coda di sincronizzazione
+   =========================================================================
+   Se il tablet perde il wifi, ogni modifica (nuova prenotazione, modifica,
+   disdetta, tavolo, note, sale extra...) resta comunque salvata SUBITO sul
+   dispositivo (IndexedDB), non solo in memoria. Quando la connessione torna
+   - da sola, senza bisogno di ricaricare la pagina - tutte le modifiche in
+   sospeso vengono inviate al cloud nell'ordine in cui sono state fatte, e
+   poi si ricarica il giorno per riallinearsi con eventuali modifiche fatte
+   nel frattempo da altri dispositivi.
+   ========================================================================= */
+
+const OFFLINE_DB_NAME = "agenda_offline_db";
+const OFFLINE_DB_VERSION = 1;
+let offlineDbInstance = null;
+let pendingOpsCount = 0;
+let outboxDraining = false;
+let cacheSaveTimer = null;
+
+function isOnline() {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
+// Distingue un errore "di rete" (niente connessione, richiesta caduta) da un
+// errore "vero" (dati non validi, permessi negati...): solo il primo tipo va
+// accodato per essere ritentato, il secondo va segnalato subito perche'
+// ritentarlo all'infinito non risolverebbe nulla.
+function isNetworkError(e) {
+  if (!e) return false;
+  if (!isOnline()) return true;
+  const msg = String((e && e.message) || e).toLowerCase();
+  return e.name === "TypeError" ||
+    msg.includes("fetch") || msg.includes("network") || msg.includes("load failed") ||
+    msg.includes("failed to fetch") || msg.includes("err_internet") || msg.includes("timeout");
+}
+
+function openOfflineDB() {
+  return new Promise((resolve, reject) => {
+    if (offlineDbInstance) return resolve(offlineDbInstance);
+    if (typeof indexedDB === "undefined") return reject(new Error("IndexedDB non disponibile"));
+    const req = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("outbox")) db.createObjectStore("outbox", { keyPath: "qid", autoIncrement: true });
+      if (!db.objectStoreNames.contains("cache")) db.createObjectStore("cache", { keyPath: "key" });
+    };
+    req.onsuccess = (e) => { offlineDbInstance = e.target.result; resolve(offlineDbInstance); };
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function idbPut(storeName, value) {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    tx.objectStore(storeName).put(value);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbDelete(storeName, key) {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    tx.objectStore(storeName).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbGetAll(storeName) {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// Le operazioni che sanno "replay-are" da sole ogni tipo di modifica in coda.
+// Tutte le insert usano upsert(onConflict:"id") invece di insert semplice:
+// cosi', se una stessa operazione venisse per caso rieseguita due volte (es.
+// connessione caduta a meta' invio), il secondo tentativo non fallisce con
+// un errore di chiave duplicata ma si limita a confermare lo stesso dato.
+const OUTBOX_EXECUTORS = {
+  insert_reservation: (payload) => supabaseClient.from(TABLE).upsert(payload, { onConflict: "id" }),
+  update_reservation: (payload) => supabaseClient.from(TABLE).update(payload.patch).eq("id", payload.id),
+  delete_reservation: (payload) => supabaseClient.from(TABLE).delete().eq("id", payload.id),
+  insert_note: (payload) => supabaseClient.from(NOTE_TABLE).upsert(payload, { onConflict: "id" }),
+  update_note: (payload) => supabaseClient.from(NOTE_TABLE).update(payload.patch).eq("id", payload.id),
+  delete_note: (payload) => supabaseClient.from(NOTE_TABLE).delete().eq("id", payload.id),
+  upsert_sala_giorno: (payload) => supabaseClient.from(SALA_TABLE).upsert(payload, { onConflict: "data,turno" }),
+  upsert_tavoli_manuali: (payload) => supabaseClient.from(TAVOLI_MANUALI_TABLE).upsert(payload, { onConflict: "data,turno" }),
+  upsert_settings: (payload) => supabaseClient.from(SETTINGS_TABLE).upsert(payload, { onConflict: "chiave" }),
+};
+
+async function enqueueOp(entry) {
+  entry.createdAt = Date.now();
+  try {
+    await idbPut("outbox", entry);
+  } catch (e) {
+    console.error("Impossibile salvare la modifica nella coda offline (IndexedDB non disponibile?):", e);
+  }
+  await refreshPendingCount();
+}
+
+async function refreshPendingCount() {
+  try {
+    const ops = await idbGetAll("outbox");
+    pendingOpsCount = ops.length;
+  } catch (e) {
+    // IndexedDB non disponibile: nessuna coda persistente fra ricariche
+    // della pagina, ma le operazioni di questa sessione restano comunque
+    // in memoria finche' non si ricarica la pagina.
+  }
+  updateOfflineBanner();
+}
+
+// Punto centrale da cui passano TUTTE le scritture verso Supabase che devono
+// sopravvivere a un'interruzione di rete: se siamo offline (o la richiesta
+// fallisce per un errore di rete) la modifica viene accodata invece di
+// andare persa, e verra' inviata da sola al ritorno della connessione.
+async function dbWrite(queueEntry, execFn) {
+  if (!isOnline()) {
+    await enqueueOp(queueEntry);
+    return { queued: true, error: null };
+  }
+  try {
+    const result = await execFn();
+    if (result && result.error) throw result.error;
+    return { queued: false, error: null, data: result ? result.data : undefined };
+  } catch (e) {
+    if (isNetworkError(e)) {
+      await enqueueOp(queueEntry);
+      return { queued: true, error: null };
+    }
+    return { queued: false, error: e };
+  }
+}
+
+// Svuota la coda in ordine di creazione. Se durante lo svuotamento la
+// connessione cade di nuovo, si ferma subito (le operazioni rimanenti
+// restano in coda) e ritentera' al prossimo evento "online" o al prossimo
+// giro del controllo periodico piu' sotto.
+async function drainOutbox() {
+  if (outboxDraining || !cloudMode || !isOnline()) return;
+  outboxDraining = true;
+  try {
+    let ops;
+    try { ops = await idbGetAll("outbox"); } catch (e) { return; }
+    ops.sort((a, b) => a.qid - b.qid);
+    for (const op of ops) {
+      if (!isOnline()) break;
+      const executor = OUTBOX_EXECUTORS[op.type];
+      if (!executor) { await idbDelete("outbox", op.qid); continue; }
+      try {
+        const result = await executor(op.payload);
+        if (result && result.error) throw result.error;
+        await idbDelete("outbox", op.qid);
+      } catch (e) {
+        if (isNetworkError(e)) {
+          break; // torneremo offline a meta': riprova al prossimo giro
+        }
+        console.error("Modifica in coda scartata (errore non di rete, non risolvibile ritentando):", op, e);
+        await idbDelete("outbox", op.qid);
+      }
+    }
+  } finally {
+    outboxDraining = false;
+    await refreshPendingCount();
+    if (pendingOpsCount === 0 && cloudMode) {
+      // Tutto sincronizzato: ricarica il giorno visualizzato per
+      // riallinearsi con eventuali modifiche fatte da altri dispositivi.
+      await loadForDate();
+    }
+  }
+}
+
+function updateOfflineBanner() {
+  const banner = $("#offline-banner");
+  if (!banner) return;
+  if (!cloudMode) { banner.classList.remove("show", "syncing"); return; }
+  if (!isOnline()) {
+    banner.classList.remove("syncing");
+    banner.classList.add("show");
+    banner.textContent = pendingOpsCount > 0
+      ? `⚠️ Sei offline: ${pendingOpsCount} ${pendingOpsCount === 1 ? "modifica" : "modifiche"} in attesa. Restano salvate su questo dispositivo e si sincronizzeranno da sole appena torna internet.`
+      : `⚠️ Sei offline. Le modifiche restano salvate su questo dispositivo e si sincronizzeranno da sole appena torna internet.`;
+    return;
+  }
+  if (pendingOpsCount > 0) {
+    banner.classList.add("show", "syncing");
+    banner.textContent = `⏳ Connessione tornata: sincronizzazione di ${pendingOpsCount} ${pendingOpsCount === 1 ? "modifica" : "modifiche"} in corso...`;
+    return;
+  }
+  banner.classList.remove("show", "syncing");
+}
+
+// Copia di scorta dei dati principali, salvata su disco (non solo in
+// memoria) cosi' se la pagina viene ricaricata mentre il tablet e' offline
+// (batteria, app chiusa per sbaglio...) si riparte comunque dall'ultimo
+// stato conosciuto invece che da zero.
+function scheduleCacheSnapshot() {
+  if (!cloudMode) return;
+  if (cacheSaveTimer) return;
+  cacheSaveTimer = setTimeout(async () => {
+    cacheSaveTimer = null;
+    try {
+      await idbPut("cache", { key: "reservations", value: reservations });
+      await idbPut("cache", { key: "notesGiorno", value: notesGiorno });
+      await idbPut("cache", { key: "tables", value: tables });
+      await idbPut("cache", { key: "employees", value: employees });
+      await idbPut("cache", { key: "saleGiornoByDate", value: saleGiornoByDate });
+      await idbPut("cache", { key: "tavoliManualiByDate", value: tavoliManualiByDate });
+    } catch (e) {
+      console.error("Errore salvataggio cache offline:", e);
+    }
+  }, 600);
+}
+
+async function hydrateFromCache() {
+  try {
+    const rows = await idbGetAll("cache");
+    const map = {};
+    rows.forEach(r => { map[r.key] = r.value; });
+    if (map.reservations) reservations = map.reservations;
+    if (map.notesGiorno) notesGiorno = map.notesGiorno;
+    if (map.tables) tables = map.tables;
+    if (map.employees) employees = map.employees;
+    if (map.saleGiornoByDate) saleGiornoByDate = map.saleGiornoByDate;
+    if (map.tavoliManualiByDate) tavoliManualiByDate = map.tavoliManualiByDate;
+  } catch (e) {
+    console.error("Errore lettura cache offline:", e);
+  }
+}
+
 // Carica la libreria Supabase in background, senza mai bloccare l'app:
 // se la rete e lenta o irraggiungibile, l'app resta comunque utilizzabile
 // in modalita demo e riprova a collegarsi senza congelare l'interfaccia.
@@ -1115,8 +1363,29 @@ function loadSupabaseScript(timeoutMs = 7000) {
 // autentica con successo, cosi' i dati non sono mai mostrati (ne' raggiungibili)
 // senza credenziali valide. Se invece non e' configurato nulla, l'app resta
 // in modalita demo locale senza richiedere login (nessun dato reale in gioco).
+// Ricorda (solo su questo dispositivo) se in passato ci si e' gia' collegati
+// col cloud almeno una volta: serve per riconoscere il caso "tablet riacceso
+// gia' senza wifi" e non restare bloccati sulla schermata di accesso, dato
+// che i dati dell'ultima sessione sono comunque gia' salvati in locale.
+function wasCloudAuthenticatedBefore() {
+  try { return localStorage.getItem("agenda_was_cloud_authenticated") === "1"; }
+  catch (e) { return false; }
+}
+function markCloudAuthenticated() {
+  try { localStorage.setItem("agenda_was_cloud_authenticated", "1"); } catch (e) {}
+}
+
 async function initCloud() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    hideLoginScreen();
+    await startApp();
+    return;
+  }
+  if (!isOnline() && wasCloudAuthenticatedBefore()) {
+    // Gia' collegati in passato, ma il tablet e' offline fin dall'avvio:
+    // si entra comunque in modalita offline invece di bloccarsi sul login.
+    // loadForDate() recuperera' l'ultima copia salvata su questo dispositivo.
+    cloudMode = true;
     hideLoginScreen();
     await startApp();
     return;
@@ -1128,12 +1397,21 @@ async function initCloud() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) {
       cloudMode = true;
+      markCloudAuthenticated();
       hideLoginScreen();
       await startApp();
     }
     // altrimenti resta sulla schermata di login, in attesa che l'utente acceda
   } catch (e) {
     console.error("Impossibile collegarsi al cloud:", e);
+    if (wasCloudAuthenticatedBefore()) {
+      // Probabile problema di rete piuttosto che di login: entra comunque
+      // offline invece di bloccare l'uso dell'app.
+      cloudMode = true;
+      hideLoginScreen();
+      await startApp();
+      return;
+    }
     setLoginStatus("Impossibile collegarsi. Verifica la connessione e riprova.", true);
   }
 }
@@ -1144,6 +1422,37 @@ async function startApp() {
   await loadTables();
   await loadEmployees();
   subscribeRealtime();
+  setupOfflineSync();
+}
+
+// Ascolta i cambi di stato della connessione e, in aggiunta, ricontrolla a
+// intervalli regolari: su alcuni tablet gli eventi online/offline del
+// browser non scattano sempre in modo affidabile, quindi non ci si affida
+// solo a quelli.
+function setupOfflineSync() {
+  window.addEventListener("online", async () => {
+    updateOfflineBanner();
+    // Caso raro: l'app era partita gia' offline (tablet riacceso senza
+    // wifi) e quindi non aveva mai creato il collegamento col cloud. Appena
+    // torna la connessione, lo creiamo adesso invece di aspettare che
+    // qualcuno ricarichi la pagina.
+    if (cloudMode && !supabaseClient) {
+      try {
+        await loadSupabaseScript();
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) { markCloudAuthenticated(); subscribeRealtime(); }
+        else { supabaseClient = null; }
+      } catch (e) {
+        console.error("Riconnessione al cloud non riuscita, si ritentera' al prossimo controllo:", e);
+        supabaseClient = null;
+      }
+    }
+    drainOutbox();
+  });
+  window.addEventListener("offline", () => { updateOfflineBanner(); });
+  setInterval(() => { if (cloudMode && isOnline()) drainOutbox(); }, 20000);
+  refreshPendingCount().then(() => { if (isOnline()) drainOutbox(); });
 }
 
 // Sincronizzazione in tempo reale fra dispositivi: quando qualcuno aggiunge,
@@ -1295,6 +1604,7 @@ function setConnStatus() {
 function iconFor(status) {
   if (status === "ok") return `<span class="res-status-mini icon-ok" title="Salvata">&#9989;</span>`;
   if (status === "error") return `<span class="res-status-mini icon-warn" title="Errore, tocca per riprovare">&#9888;&#65039;</span>`;
+  if (status === "queued") return `<span class="res-status-mini icon-queued" title="Salvata solo su questo dispositivo: si sincronizzera' da sola appena torna internet">&#128190;</span>`;
   return `<span class="res-status-mini icon-pending spin" title="Salvataggio...">&#8635;</span>`;
 }
 
@@ -1433,6 +1743,7 @@ function render() {
   updateAddButtonsState();
   renderTavoliStatusRow();
   updateEditSelectedButton();
+  scheduleCacheSnapshot();
 }
 
 // Non si possono creare nuove prenotazioni per un giorno gia' passato: i
@@ -1472,6 +1783,16 @@ function escapeHtml(s) {
 
 async function loadForDate() {
   const key = dateKey(currentDate);
+  if (cloudMode && !isOnline()) {
+    // Offline: non ha senso tentare chiamate di rete che falliranno soltanto
+    // dopo un'attesa. Se non abbiamo ancora nulla in memoria (es. la pagina
+    // e' stata ricaricata mentre il tablet era gia' offline), recuperiamo
+    // l'ultima copia salvata su questo dispositivo.
+    if (!reservations.length) await hydrateFromCache();
+    updateOfflineBanner();
+    render();
+    return;
+  }
   await loadNotesForDate();
   await loadSaleGiorno();
   await loadTavoliManuali();
@@ -1483,6 +1804,14 @@ async function loadForDate() {
   }
   const { data, error } = await supabaseClient.from(TABLE).select("*").eq("data", key);
   if (error) {
+    if (isNetworkError(error)) {
+      // La rete e' caduta proprio mentre stavamo caricando: trattalo come
+      // offline invece di lasciare la schermata vuota o con un errore secco.
+      if (!reservations.length) await hydrateFromCache();
+      updateOfflineBanner();
+      render();
+      return;
+    }
     console.error(error);
     render();
     return;
@@ -1490,6 +1819,7 @@ async function loadForDate() {
   const others = reservations.filter(r => r.data !== key);
   reservations = others.concat(data.map(r => ({...r, _status:"ok"})));
   await purgeExpiredCancellations();
+  scheduleCacheSnapshot();
   render();
 }
 
@@ -1532,8 +1862,19 @@ function seedDemoData() {
   ]);
 }
 
+// Genera un UUID v4 vero e proprio (non solo una stringa "id-xxxx"): serve
+// perche' l'id viene ora assegnato lato client fin dall'inizio (anche offline)
+// e la colonna "id" delle tabelle su Supabase e' di tipo uuid.
 function cryptoId() {
-  return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Ripiego per WebView datate senza crypto.randomUUID.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 /* ---------- Note della giornata (promemoria/cose da fare) ----------
@@ -1542,7 +1883,7 @@ function cryptoId() {
    In modalita demo restano solo in memoria per la sessione corrente. */
 async function loadNotesForDate() {
   const key = dateKey(currentDate);
-  if (!cloudMode) return;
+  if (!cloudMode || !isOnline()) return;
   const { data, error } = await supabaseClient.from(NOTE_TABLE).select("*").eq("data", key);
   if (error) { console.error("Errore caricamento note:", error); return; }
   const others = notesGiorno.filter(n => n.data !== key);
@@ -1567,6 +1908,7 @@ function renderNotesModal() {
     <div class="note-row ${n.fatto ? "done" : ""}" data-id="${n.id}">
       <button type="button" class="note-check" aria-label="Segna come fatto">${n.fatto ? "&#10003;" : ""}</button>
       <div class="note-text">${escapeHtml(n.testo)}</div>
+      ${n._status && n._status !== "ok" ? iconFor(n._status) : ""}
       <button type="button" class="note-delete" aria-label="Elimina nota">&times;</button>
     </div>
   `).join("") : `<p class="notes-empty">Nessuna nota per questo giorno.</p>`;
@@ -1585,15 +1927,24 @@ async function addNoteGiorno() {
   renderNotesBadge();
   setTimeout(() => input.focus(), 30);
   if (cloudMode) {
-    const { data, error } = await supabaseClient.from(NOTE_TABLE).insert({ data: key, testo, fatto: false }).select().single();
-    if (error) {
-      console.error("Errore salvataggio nota:", error);
-      notesGiorno = notesGiorno.filter(n => n.id !== localId);
-      renderNotesModal();
-      renderNotesBadge();
-      return;
+    scheduleCacheSnapshot();
+    const result = await dbWrite(
+      { type: "insert_note", payload: { id: localId, data: key, testo, fatto: false } },
+      () => supabaseClient.from(NOTE_TABLE).upsert({ id: localId, data: key, testo, fatto: false }, { onConflict: "id" }).select().single()
+    );
+    if (result.queued) {
+      note._status = "queued";
+    } else if (result.error) {
+      // Errore "vero" (non di rete): qui, a differenza di prima, la nota
+      // NON viene piu' cancellata dallo schermo - resta visibile ma segnata
+      // in errore, cosi' non si perde quello che si e' scritto.
+      console.error("Errore salvataggio nota:", result.error);
+      note._status = "error";
+    } else {
+      Object.assign(note, result.data || {}, { _status: "ok" });
     }
-    Object.assign(note, data, { _status: "ok" });
+    renderNotesModal();
+    renderNotesBadge();
   }
 }
 
@@ -1604,8 +1955,12 @@ async function toggleNoteGiorno(id) {
   renderNotesModal();
   renderNotesBadge();
   if (cloudMode) {
-    const { error } = await supabaseClient.from(NOTE_TABLE).update({ fatto: n.fatto }).eq("id", id);
-    if (error) console.error("Errore aggiornamento nota:", error);
+    scheduleCacheSnapshot();
+    const result = await dbWrite(
+      { type: "update_note", payload: { id, patch: { fatto: n.fatto } } },
+      () => supabaseClient.from(NOTE_TABLE).update({ fatto: n.fatto }).eq("id", id)
+    );
+    if (result.error) console.error("Errore aggiornamento nota:", result.error);
   }
 }
 
@@ -1614,8 +1969,12 @@ async function deleteNoteGiorno(id) {
   renderNotesModal();
   renderNotesBadge();
   if (cloudMode) {
-    const { error } = await supabaseClient.from(NOTE_TABLE).delete().eq("id", id);
-    if (error) console.error("Errore eliminazione nota:", error);
+    scheduleCacheSnapshot();
+    const result = await dbWrite(
+      { type: "delete_note", payload: { id } },
+      () => supabaseClient.from(NOTE_TABLE).delete().eq("id", id)
+    );
+    if (result.error) console.error("Errore eliminazione nota:", result.error);
   }
 }
 
@@ -2130,8 +2489,12 @@ $("#pw-confirm-btn").addEventListener("click", async () => {
   reservations = reservations.filter(r => r.id !== id);
   render();
   if (cloudMode) {
-    const { error } = await supabaseClient.from(TABLE).delete().eq("id", id);
-    if (error) console.error(error);
+    scheduleCacheSnapshot();
+    const result = await dbWrite(
+      { type: "delete_reservation", payload: { id } },
+      () => supabaseClient.from(TABLE).delete().eq("id", id)
+    );
+    if (result.error) console.error(result.error);
   }
 });
 $("#pw-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#pw-confirm-btn").click(); });
@@ -2144,22 +2507,25 @@ async function persist(localId, payload, isUpdate) {
     render();
     return;
   }
-  try {
-    if (isUpdate) {
-      const { error } = await supabaseClient.from(TABLE).update(payload).eq("id", localId);
-      if (error) throw error;
-      const r = reservations.find(x => x.id === localId);
-      if (r) r._status = "ok";
-    } else {
-      const { data, error } = await supabaseClient.from(TABLE).insert(payload).select().single();
-      if (error) throw error;
-      const idx = reservations.findIndex(x => x.id === localId);
-      if (idx >= 0) reservations[idx] = { ...data, _status: "ok" };
-    }
-  } catch (e) {
-    console.error(e);
-    const r = reservations.find(x => x.id === localId);
+  scheduleCacheSnapshot();
+  const entry = isUpdate
+    ? { type: "update_reservation", payload: { id: localId, patch: payload } }
+    : { type: "insert_reservation", payload: { ...payload, id: localId } };
+  const exec = isUpdate
+    ? () => supabaseClient.from(TABLE).update(payload).eq("id", localId)
+    : () => supabaseClient.from(TABLE).upsert({ ...payload, id: localId }, { onConflict: "id" }).select().single();
+  const result = await dbWrite(entry, exec);
+  const r = reservations.find(x => x.id === localId);
+  if (result.queued) {
+    if (r) r._status = "queued";
+  } else if (result.error) {
+    console.error(result.error);
     if (r) r._status = "error";
+  } else {
+    if (r) {
+      if (!isUpdate && result.data) Object.assign(r, result.data);
+      r._status = "ok";
+    }
   }
   render();
 }
@@ -2236,16 +2602,17 @@ function joinTavoli(arr) {
 }
 
 async function loadTables() {
-  if (cloudMode) {
+  if (cloudMode && isOnline()) {
     const { data, error } = await supabaseClient.from(SETTINGS_TABLE).select("valore").eq("chiave", "tavoli").maybeSingle();
     if (!error && data && data.valore) {
       try {
         const parsed = JSON.parse(data.valore);
         // Compatibilita' con l'elenco vecchio (semplice lista di nomi senza sala).
         tables = parsed.map(t => (typeof t === "string") ? { nome: t, sala: "" } : t);
+        scheduleCacheSnapshot();
       } catch (e) { tables = []; }
     }
-  } else if (!tablesDemoSeeded) {
+  } else if (!cloudMode && !tablesDemoSeeded) {
     tablesDemoSeeded = true;
     tables = [
       { nome: "1", sala: "SALETTA" }, { nome: "2", sala: "SALETTA" },
@@ -2261,9 +2628,13 @@ async function loadTables() {
 
 async function saveTablesToCloud() {
   if (!cloudMode) return;
-  const { error } = await supabaseClient.from(SETTINGS_TABLE)
-    .upsert({ chiave: "tavoli", valore: JSON.stringify(tables) }, { onConflict: "chiave" });
-  if (error) console.error("Errore salvataggio elenco tavoli:", error);
+  scheduleCacheSnapshot();
+  const payload = { chiave: "tavoli", valore: JSON.stringify(tables) };
+  const result = await dbWrite(
+    { type: "upsert_settings", payload },
+    () => supabaseClient.from(SETTINGS_TABLE).upsert(payload, { onConflict: "chiave" })
+  );
+  if (result.error) console.error("Errore salvataggio elenco tavoli:", result.error);
 }
 
 function tavoloTagHtml(t) {
@@ -2367,12 +2738,12 @@ let employees = [];
 let employeesDemoSeeded = false;
 
 async function loadEmployees() {
-  if (cloudMode) {
+  if (cloudMode && isOnline()) {
     const { data, error } = await supabaseClient.from(SETTINGS_TABLE).select("valore").eq("chiave", "utenti").maybeSingle();
     if (!error && data && data.valore) {
-      try { employees = JSON.parse(data.valore); } catch (e) { employees = []; }
+      try { employees = JSON.parse(data.valore); scheduleCacheSnapshot(); } catch (e) { employees = []; }
     }
-  } else if (!employeesDemoSeeded) {
+  } else if (!cloudMode && !employeesDemoSeeded) {
     employeesDemoSeeded = true;
     employees = ["Federico", "Marco", "Giulia"]; // elenco dimostrativo, solo in modalita demo
   }
@@ -2381,9 +2752,13 @@ async function loadEmployees() {
 
 async function saveEmployeesToCloud() {
   if (!cloudMode) return;
-  const { error } = await supabaseClient.from(SETTINGS_TABLE)
-    .upsert({ chiave: "utenti", valore: JSON.stringify(employees) }, { onConflict: "chiave" });
-  if (error) console.error("Errore salvataggio elenco utenti:", error);
+  scheduleCacheSnapshot();
+  const payload = { chiave: "utenti", valore: JSON.stringify(employees) };
+  const result = await dbWrite(
+    { type: "upsert_settings", payload },
+    () => supabaseClient.from(SETTINGS_TABLE).upsert(payload, { onConflict: "chiave" })
+  );
+  if (result.error) console.error("Errore salvataggio elenco utenti:", result.error);
 }
 
 function renderEmployeeTagList() {
@@ -2488,7 +2863,7 @@ function visibleTables(turno) {
 
 async function loadSaleGiorno() {
   const key = dateKey(currentDate);
-  if (!cloudMode) return; // in modalita demo resta quanto gia' impostato in questa sessione
+  if (!cloudMode || !isOnline()) return; // in modalita demo (o offline) resta quanto gia' impostato in questa sessione
   const { data, error } = await supabaseClient.from(SALA_TABLE).select("turno,sale").eq("data", key);
   if (error) { console.error("Errore caricamento sale del giorno:", error); return; }
   const perTurno = { pranzo: [], cena: [] };
@@ -2523,8 +2898,12 @@ async function toggleSalaGiorno(turno, sala) {
   render(); // aggiorna "Tavoli liberi" (popup) e Disposizione se aperti, in base ai tavoli ora visibili/nascosti
   renderDisposizione();
   if (cloudMode) {
-    const { error } = await supabaseClient.from(SALA_TABLE).upsert({ data: key, turno, sale: next.join(",") }, { onConflict: "data,turno" });
-    if (error) console.error("Errore salvataggio sale del giorno:", error);
+    scheduleCacheSnapshot();
+    const result = await dbWrite(
+      { type: "upsert_sala_giorno", payload: { data: key, turno, sale: next.join(",") } },
+      () => supabaseClient.from(SALA_TABLE).upsert({ data: key, turno, sale: next.join(",") }, { onConflict: "data,turno" })
+    );
+    if (result.error) console.error("Errore salvataggio sale del giorno:", result.error);
   }
 }
 
@@ -2551,7 +2930,7 @@ let tavoliManualiByDate = {}; // cache lato client: { "2026-08-18": { pranzo: ["
 
 async function loadTavoliManuali() {
   const key = dateKey(currentDate);
-  if (!cloudMode) return;
+  if (!cloudMode || !isOnline()) return;
   const { data, error } = await supabaseClient.from(TAVOLI_MANUALI_TABLE).select("turno,tavoli").eq("data", key);
   if (error) { console.error("Errore caricamento tavoli occupati manualmente:", error); return; }
   const perTurno = { pranzo: [], cena: [] };
@@ -2571,8 +2950,12 @@ async function toggleTavoloManuale(turno, tavolo) {
   tavoliManualiByDate[key][turno] = next;
   renderTavoliStatusRow();
   if (cloudMode) {
-    const { error } = await supabaseClient.from(TAVOLI_MANUALI_TABLE).upsert({ data: key, turno, tavoli: next.join(",") }, { onConflict: "data,turno" });
-    if (error) console.error("Errore salvataggio tavoli occupati manualmente:", error);
+    scheduleCacheSnapshot();
+    const result = await dbWrite(
+      { type: "upsert_tavoli_manuali", payload: { data: key, turno, tavoli: next.join(",") } },
+      () => supabaseClient.from(TAVOLI_MANUALI_TABLE).upsert({ data: key, turno, tavoli: next.join(",") }, { onConflict: "data,turno" })
+    );
+    if (result.error) console.error("Errore salvataggio tavoli occupati manualmente:", result.error);
   }
 }
 
