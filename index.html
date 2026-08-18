@@ -76,6 +76,13 @@
   }
   .sala-toggle-btn.active{border-color:#c3d2b3;color:var(--ok);background:#eef3e7;}
   .sala-toggle-btn:active{opacity:.75;}
+  .panel-sala-row{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:10px 28px;border-bottom:1px solid var(--border);flex-shrink:0;
+  }
+  .panel-sala-label{
+    font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;
+  }
   .notes-badge{
     position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:50%;
     background:var(--warn);color:#fff;font-size:9.5px;font-weight:700;display:none;
@@ -553,6 +560,7 @@
     .panel + .panel{border-left:none;border-top:1px solid var(--border);}
     .res-list{flex:none;overflow:visible;padding:4px 16px 20px;}
     .panel-header{padding:16px 16px 12px;}
+    .panel-sala-row{padding:8px 16px;}
     .modal{padding:26px 20px;width:94vw;}
     .row2{flex-direction:column;gap:0;}
     #help-modal .modal,#disposizione-modal .modal{width:94vw;}
@@ -616,7 +624,6 @@
       <button id="next-day" aria-label="giorno successivo">&#8250;</button>
       <button class="today-btn" id="today-btn">Oggi</button>
       <button class="today-btn notes-btn" id="notes-btn" aria-label="Note della giornata" title="Note della giornata">&#128221;<span class="notes-badge" id="notes-badge"></span></button>
-      <div class="sala-toggle-row" id="sala-toggle-row"></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span class="status-pill" id="conn-status"><span class="status-dot"></span><span id="conn-label">verifica...</span></span>
@@ -669,6 +676,10 @@
           <button class="add-btn" data-turno="pranzo">+</button>
         </div>
       </div>
+      <div class="panel-sala-row">
+        <span class="panel-sala-label">Sale extra</span>
+        <div class="sala-toggle-row" id="sala-toggle-row-pranzo"></div>
+      </div>
       <div class="orario-breakdown" id="breakdown-pranzo"></div>
       <div class="res-list" id="list-pranzo"></div>
     </section>
@@ -689,6 +700,10 @@
           <button class="toolbar-btn disp-btn" data-turno="cena">Disposizione</button>
           <button class="add-btn" data-turno="cena">+</button>
         </div>
+      </div>
+      <div class="panel-sala-row">
+        <span class="panel-sala-label">Sale extra</span>
+        <div class="sala-toggle-row" id="sala-toggle-row-cena"></div>
       </div>
       <div class="orario-breakdown" id="breakdown-cena"></div>
       <div class="res-list" id="list-cena"></div>
@@ -955,10 +970,12 @@ alter publication supabase_realtime add table note_giorno;</pre>
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se non hai ancora attivato il login (vedi sopra "Accesso protetto da login"), sostituisci la riga "create policy" con una ad accesso libero come per le altre tabelle: <code>using (true) with check (true)</code>. Se il comando "alter publication" da errore "gia presente", va bene cosi.</p>
     </div>
     <div class="alter-box">
-      <p><b>Novita "Sale per giornata" (Sopra/Cantina/Fuori):</b> i pulsanti accanto alla data che accendono/spengono queste sale occasionali salvano la scelta nel cloud (cosi' resta uguale su tutti i dispositivi). Per attivarlo esegui una sola volta questo script nell'SQL Editor:</p>
+      <p><b>Novita "Sale per servizio" (Sopra/Cantina/Fuori):</b> i pulsanti "Sale extra" in cima a Pranzo e a Cena accendono/spengono queste sale occasionali separatamente per ogni servizio (es. Sopra attiva solo a pranzo), e salvano la scelta nel cloud (cosi' resta uguale su tutti i dispositivi). Se non hai ancora questa tabella, crearla eseguendo una sola volta questo script nell'SQL Editor:</p>
       <pre>create table if not exists sale_giorno (
-  data date primary key,
-  sale text
+  data date not null,
+  turno text not null,
+  sale text,
+  primary key (data, turno)
 );
 
 alter table sale_giorno enable row level security;
@@ -971,9 +988,25 @@ with check (auth.role() = 'authenticated');
 alter publication supabase_realtime add table sale_giorno;</pre>
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se non hai ancora attivato il login, sostituisci la riga "create policy" con <code>using (true) with check (true)</code>. Senza questa tabella i pulsanti Sopra/Cantina/Fuori funzionano comunque, ma solo sul dispositivo su cui li tocchi (non si sincronizzano).</p>
     </div>
+    <div class="alter-box">
+      <p><b>Hai gia' la vecchia tabella "sale_giorno" (una sola sala per giorno, non per servizio)?</b> Esegui invece questo script una sola volta, per aggiornarla senza perdere le scelte gia' salvate (vengono copiate su entrambi i servizi):</p>
+      <pre>alter table sale_giorno add column if not exists turno text;
+
+alter table sale_giorno replica identity full;
+
+alter table sale_giorno drop constraint if exists sale_giorno_pkey;
+
+insert into sale_giorno (data, turno, sale)
+select data, 'cena', sale from sale_giorno where turno is null;
+
+update sale_giorno set turno = 'pranzo' where turno is null;
+
+alter table sale_giorno add primary key (data, turno);</pre>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se il comando "drop constraint" da' errore perche' il vincolo ha un altro nome, guarda il nome esatto in Database &rarr; Tables &rarr; sale_giorno &rarr; Constraints nel pannello Supabase e usalo al posto di <code>sale_giorno_pkey</code>.</p>
+    </div>
 
     <h2 style="margin-top:30px;">Tavoli del locale</h2>
-    <p>Aggiungi qui l'elenco dei tavoli, ciascuno assegnato alla sua sala: ti serviranno nella modalita "Crea disposizione" per assegnare i tavoli alle prenotazioni con un tocco. Le sale Saletta, Osteria, Negozio e Plastic si usano sempre; Sopra, Cantina e Fuori sono occasionali e si attivano/disattivano giorno per giorno con i pulsanti accanto alla data (rosso = spenta, verde = accesa): quando una sala e' spenta, i suoi tavoli non compaiono in "Tavoli liberi" ne' in "Disposizione".</p>
+    <p>Aggiungi qui l'elenco dei tavoli, ciascuno assegnato alla sua sala: ti serviranno nella modalita "Crea disposizione" per assegnare i tavoli alle prenotazioni con un tocco. Le sale Saletta, Osteria, Negozio e Plastic si usano sempre; Sopra, Cantina e Fuori sono occasionali e si attivano/disattivano con i pulsanti "Sale extra" in cima a Pranzo e a Cena (rosso = spenta, verde = accesa), separatamente per ogni servizio (es. puoi tenere Sopra accesa solo a pranzo): quando una sala e' spenta per quel servizio, i suoi tavoli non compaiono in "Tavoli liberi" ne' in "Disposizione" per quel turno.</p>
     <div class="field">
       <label>Sala del nuovo tavolo</label>
       <input type="hidden" id="f-nuovo-tavolo-sala">
@@ -2165,7 +2198,8 @@ $("#save-email-backup").addEventListener("click", async () => {
 /* ---------- Tavoli del locale (tag, raggruppati per sala) ---------- */
 // Sale "sempre attive": nessun pulsante di accensione/spegnimento, i loro
 // tavoli sono sempre visibili. Sale "occasionali": si accendono/spengono
-// giorno per giorno con i pulsanti accanto alla data (vedi piu' sotto).
+// per ogni servizio (Pranzo/Cena) separatamente, con i pulsanti "Sale extra"
+// in cima a ciascun pannello (vedi piu' sotto).
 const SALE = ["SOPRA", "SALETTA", "OSTERIA", "CANTINA", "NEGOZIO", "PLASTIC", "FUORI"];
 const SALE_SEMPRE_ATTIVE = ["SALETTA", "OSTERIA", "NEGOZIO", "PLASTIC"];
 const SALE_TOGGLE = ["SOPRA", "CANTINA", "FUORI"];
@@ -2411,56 +2445,72 @@ function assignedTableCount(items, nameFilter) {
   return set.size;
 }
 
-/* ---------- Sale attive per la giornata (Sopra/Cantina/Fuori) ----------
-   Sono le uniche 3 sale "occasionali": si accendono/spengono giorno per
-   giorno con i pulsanti accanto alla data. Le altre 4 sale sono sempre
-   considerate attive, senza bisogno di nessun pulsante. Lo stato e' legato
-   al giorno visualizzato (come le note), non al turno pranzo/cena. */
-let saleGiornoByDate = {}; // cache lato client: { "2026-08-17": ["SOPRA","FUORI"], ... }
+/* ---------- Sale attive per la giornata E per il turno (Sopra/Cantina/Fuori) ----------
+   Sono le uniche 3 sale "occasionali": si accendono/spengono per ogni
+   servizio (Pranzo/Cena) separatamente, cosi' ad es. si puo' usare la sala
+   Sopra solo a pranzo e non a cena. Le altre 4 sale sono sempre considerate
+   attive, senza bisogno di nessun pulsante. */
+let saleGiornoByDate = {}; // cache lato client: { "2026-08-17": { pranzo: ["SOPRA"], cena: ["FUORI"] }, ... }
 
-function isSalaVisibleToday(sala) {
+function isSalaVisibleToday(sala, turno) {
   if (!sala || !SALE.includes(sala)) return true; // tavoli senza sala (dati vecchi) sempre visibili
   if (!SALE_TOGGLE.includes(sala)) return true; // sala sempre attiva
-  return (saleGiornoByDate[dateKey(currentDate)] || []).includes(sala);
+  const perTurno = saleGiornoByDate[dateKey(currentDate)];
+  return !!(perTurno && perTurno[turno] && perTurno[turno].includes(sala));
 }
 
-function visibleTables() {
-  return tables.filter(t => isSalaVisibleToday(t.sala));
+function visibleTables(turno) {
+  return tables.filter(t => isSalaVisibleToday(t.sala, turno));
 }
 
 async function loadSaleGiorno() {
   const key = dateKey(currentDate);
   if (!cloudMode) return; // in modalita demo resta quanto gia' impostato in questa sessione
-  const { data, error } = await supabaseClient.from(SALA_TABLE).select("sale").eq("data", key).maybeSingle();
+  const { data, error } = await supabaseClient.from(SALA_TABLE).select("turno,sale").eq("data", key);
   if (error) { console.error("Errore caricamento sale del giorno:", error); return; }
-  saleGiornoByDate[key] = (data && data.sale) ? String(data.sale).split(",").filter(Boolean) : [];
+  const perTurno = { pranzo: [], cena: [] };
+  (data || []).forEach(row => {
+    if (perTurno[row.turno] !== undefined) {
+      perTurno[row.turno] = row.sale ? String(row.sale).split(",").filter(Boolean) : [];
+    }
+  });
+  saleGiornoByDate[key] = perTurno;
 }
 
 function renderSalaToggleButtons() {
-  const active = saleGiornoByDate[dateKey(currentDate)] || [];
-  $("#sala-toggle-row").innerHTML = SALE_TOGGLE.map(sala => `
-    <button type="button" class="sala-toggle-btn ${active.includes(sala) ? "active" : ""}" data-sala="${sala}">${sala}</button>
-  `).join("");
+  const key = dateKey(currentDate);
+  const perTurno = saleGiornoByDate[key] || { pranzo: [], cena: [] };
+  ["pranzo", "cena"].forEach(turno => {
+    const el = $(`#sala-toggle-row-${turno}`);
+    if (!el) return;
+    const active = perTurno[turno] || [];
+    el.innerHTML = SALE_TOGGLE.map(sala => `
+      <button type="button" class="sala-toggle-btn ${active.includes(sala) ? "active" : ""}" data-turno="${turno}" data-sala="${sala}">${sala}</button>
+    `).join("");
+  });
 }
 
-async function toggleSalaGiorno(sala) {
+async function toggleSalaGiorno(turno, sala) {
   const key = dateKey(currentDate);
-  const current = saleGiornoByDate[key] || [];
+  if (!saleGiornoByDate[key]) saleGiornoByDate[key] = { pranzo: [], cena: [] };
+  const current = saleGiornoByDate[key][turno] || [];
   const next = current.includes(sala) ? current.filter(s => s !== sala) : [...current, sala];
-  saleGiornoByDate[key] = next;
+  saleGiornoByDate[key][turno] = next;
   renderSalaToggleButtons();
   render(); // aggiorna "Tavoli liberi" (popup) e Disposizione se aperti, in base ai tavoli ora visibili/nascosti
   renderDisposizione();
   if (cloudMode) {
-    const { error } = await supabaseClient.from(SALA_TABLE).upsert({ data: key, sale: next.join(",") }, { onConflict: "data" });
+    const { error } = await supabaseClient.from(SALA_TABLE).upsert({ data: key, turno, sale: next.join(",") }, { onConflict: "data,turno" });
     if (error) console.error("Errore salvataggio sale del giorno:", error);
   }
 }
 
-$("#sala-toggle-row").addEventListener("click", (e) => {
-  const btn = e.target.closest(".sala-toggle-btn");
-  if (!btn) return;
-  toggleSalaGiorno(btn.dataset.sala);
+document.querySelectorAll(".sala-toggle-row").forEach(row => {
+  row.addEventListener("click", (e) => {
+    const btn = e.target.closest(".sala-toggle-btn");
+    if (!btn) return;
+    toggleSalaGiorno(btn.dataset.turno, btn.dataset.sala);
+  });
 });
 
 /* ---------- Popup "Tavoli liberi" (accanto a Pranzo/Cena) ----------
@@ -2468,7 +2518,7 @@ $("#sala-toggle-row").addEventListener("click", (e) => {
    stati assegnati a nessuna prenotazione di quel turno/giorno. I tavoli
    delle sale spente per oggi non compaiono mai qui. */
 function freeTablesForTurno(turno) {
-  const vTables = visibleTables();
+  const vTables = visibleTables(turno);
   if (!vTables.length) return [];
   const key = dateKey(currentDate);
   const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
@@ -2484,7 +2534,7 @@ function renderFreeTablesPopup(turno) {
     popup.innerHTML = `<div class="free-tables-popup-title">Tavoli liberi</div><p class="free-tables-empty">Nessun tavolo configurato: aggiungilo dalle Impostazioni.</p>`;
     return;
   }
-  const vTables = visibleTables();
+  const vTables = visibleTables(turno);
   if (!vTables.length) {
     popup.innerHTML = `<div class="free-tables-popup-title">Tavoli liberi</div><p class="free-tables-empty">Nessuna sala attiva per oggi: accendi Sopra/Cantina/Fuori qui sopra, oppure configura tavoli in Saletta/Osteria/Negozio/Plastic.</p>`;
     return;
@@ -2577,7 +2627,7 @@ function updateWalkinButtonsState() {
 const WALKIN_PRIMO_ONLY_ORARI = ["21:00", "21:30"];
 
 function walkInSelectableTables(turno) {
-  const vTables = visibleTables();
+  const vTables = visibleTables(turno);
   const key = dateKey(currentDate);
   const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
   const out = [];
@@ -2763,7 +2813,7 @@ function renderDisposizione() {
   const items = dispItems();
   $("#disp-title").textContent = `Disposizione — ${dispTurno === "pranzo" ? "Pranzo" : "Cena"}`;
 
-  const vTables = visibleTables();
+  const vTables = visibleTables(dispTurno);
   if (!tables.length) {
     $("#disp-tables-label").textContent = "Tavoli";
     $("#disp-tables").innerHTML = `<div class="disp-empty-tables">Nessun tavolo configurato: aggiungilo dalle Impostazioni (icona ingranaggio in alto).</div>`;
