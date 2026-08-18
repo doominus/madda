@@ -66,7 +66,7 @@
   }
   .today-btn:active{border-color:var(--text);color:var(--text);}
   .notes-btn{position:relative;font-size:15px;padding:0 12px;}
-  .sala-toggle-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .sala-toggle-row,.tavolo-status-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
   .sala-toggle-btn{
     font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
     padding:6px 11px;border-radius:1px;cursor:pointer;
@@ -83,6 +83,20 @@
   .panel-sala-label{
     font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;
   }
+  .panel-tavoli-row{align-items:flex-start;}
+  .tavolo-status-chip{
+    display:inline-flex;flex-direction:column;align-items:center;gap:1px;
+    font-size:12px;font-weight:700;letter-spacing:.01em;
+    padding:7px 13px;border-radius:1px;cursor:pointer;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    border:1px solid;transition:background .15s ease,border-color .15s ease,color .15s ease;
+  }
+  .tavolo-status-chip:active{opacity:.75;}
+  .tavolo-status-chip.libero{border-color:#c3d2b3;color:var(--ok);background:#eef3e7;}
+  .tavolo-status-chip.tardi{border-color:#e6cf8f;color:#a3791c;background:#fbf3de;}
+  .tavolo-status-chip.occupato{border-color:#e3c3ba;color:var(--warn);background:#fbf1ee;}
+  .tavolo-status-chip .tsc-sub{font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;opacity:.8;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tavoli-status-empty{color:var(--muted);font-size:12px;font-style:italic;}
   .notes-badge{
     position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:50%;
     background:var(--warn);color:#fff;font-size:9.5px;font-weight:700;display:none;
@@ -175,67 +189,6 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
 
-  /* ---------- Popup "Tavoli liberi" (nuvoletta) ---------- */
-  .free-tables-wrap{position:relative;display:inline-flex;}
-  .free-tables-btn{
-    font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
-    padding:6px 11px;border-radius:1px;border:1px solid var(--border);background:transparent;color:var(--muted);
-    cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    transition:border-color .15s ease,color .15s ease;
-  }
-  .free-tables-btn:active,.free-tables-btn.active{border-color:var(--text);color:var(--text);}
-  .free-tables-popup{
-    display:none;position:fixed;z-index:40;
-    background:var(--card);border:1px solid var(--border);border-radius:2px;box-shadow:var(--shadow-lg);
-    padding:14px 16px;min-width:200px;max-width:280px;
-  }
-  .free-tables-popup::before{
-    content:"";position:absolute;bottom:100%;left:16px;border:7px solid transparent;border-bottom-color:var(--border);
-  }
-  .free-tables-popup::after{
-    content:"";position:absolute;bottom:100%;left:17px;border:6px solid transparent;border-bottom-color:var(--card);
-  }
-  .free-tables-popup.show{display:block;}
-  .free-tables-popup-title{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:11px;}
-  .free-tables-popup-list{display:flex;flex-wrap:wrap;gap:7px;}
-  .free-tables-chip{
-    border:1.5px solid var(--ok);border-radius:1px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--text);
-    background:transparent;letter-spacing:.02em;
-  }
-  .free-tables-empty{color:var(--muted);font-size:12.5px;font-style:italic;margin:0;}
-
-  /* ---------- Cliente di passaggio (walk-in) ---------- */
-  .walkin-wrap{position:relative;display:inline-flex;margin-right:8px;}
-  .walkin-btn{
-    width:34px;height:34px;border-radius:50%;border:1px solid var(--border);font-size:15px;cursor:pointer;
-    color:var(--muted);line-height:1;display:flex;align-items:center;justify-content:center;
-    background:transparent;transition:background .15s ease,color .15s ease,border-color .15s ease;
-  }
-  .walkin-btn:active,.walkin-btn.active{border-color:var(--text);color:var(--text);}
-  .walkin-btn:disabled{opacity:.3;cursor:not-allowed;}
-  .walkin-modal{width:320px;max-width:92vw;max-height:80vh;overflow-y:auto;padding:26px 28px;}
-  .walkin-popup-title{
-    font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;
-    margin-bottom:13px;display:flex;align-items:center;justify-content:space-between;gap:8px;
-  }
-  .walkin-back-btn{border:none;background:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0;text-decoration:underline;}
-  .walkin-table-list{display:flex;flex-direction:column;gap:6px;}
-  .walkin-table-row{
-    display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);
-    border-radius:1px;padding:9px 12px;background:transparent;cursor:pointer;font-size:13.5px;font-weight:600;
-    color:var(--text);text-align:left;font-family:inherit;transition:border-color .15s ease,background .15s ease;
-  }
-  .walkin-table-row:active{border-color:var(--text);background:#f6f1e6;}
-  .walkin-table-row .wt-hint{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
-  .walkin-empty{color:var(--muted);font-size:12.5px;font-style:italic;margin:0;}
-  .walkin-selected-table{font-family:var(--font-display);font-size:20px;font-weight:600;margin-bottom:14px;}
-  .walkin-field-label{font-size:10.5px;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em;}
-  .walkin-field{margin-bottom:16px;}
-  .walkin-confirm-btn{width:100%;height:40px;margin-top:4px;}
-  .walkin-confirm-btn:disabled{opacity:.35;cursor:not-allowed;}
-  .walkin-hint{font-size:11px;color:var(--muted);font-style:italic;margin-top:8px;line-height:1.4;}
-  .chip-option:disabled{opacity:.3;cursor:not-allowed;}
-
   .add-btn{
     width:34px;height:34px;border-radius:50%;border:1px solid var(--text);font-size:17px;cursor:pointer;
     color:var(--text);line-height:1;display:flex;align-items:center;justify-content:center;
@@ -246,6 +199,14 @@
   .add-btn:disabled{opacity:.3;cursor:not-allowed;}
   .add-btn:disabled:active{background:transparent;color:var(--text);}
 
+  .edit-selected-btn{
+    width:34px;height:34px;border-radius:50%;border:1px solid var(--pranzo);font-size:14px;cursor:pointer;
+    color:var(--pranzo);line-height:1;display:flex;align-items:center;justify-content:center;
+    background:transparent;transition:background .15s ease,color .15s ease;margin-right:8px;
+  }
+  .panel[data-turno="cena"] .edit-selected-btn{border-color:var(--cena);color:var(--cena);}
+  .edit-selected-btn:active{background:var(--text);color:var(--card);border-color:var(--text);}
+
   .res-list{flex:1;overflow-y:auto;padding:6px 28px 80px;}
   .empty-state{
     text-align:center;color:var(--muted);margin-top:60px;font-size:14px;letter-spacing:.02em;
@@ -255,26 +216,28 @@
     position:relative;
     background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0;
     padding:17px 14px 17px 2px;margin-bottom:0;display:flex;align-items:center;gap:16px;cursor:pointer;
-    transition:background .15s ease;
+    transition:background .15s ease;user-select:none;
   }
   .res-card:active{background:#f6f1e6;}
   .res-card.cancelled{opacity:.5;background:transparent;}
   .res-card.cancelled .res-name{text-decoration:line-through;}
   .res-card.arrived{background:#f1f4ec;}
   .res-card.arrived:active{background:#e9eee1;}
+  .res-card.selected{background:#fbf3de;box-shadow:inset 3px 0 0 0 #c9a227;}
+  .res-card.selected:active{background:#f7ecc9;}
   .badge-cancelled{
     display:inline-block;background:transparent;color:var(--muted);font-size:9.5px;font-weight:700;
-    padding:3px 7px;border:1px solid var(--border);border-radius:1px;margin-left:8px;text-decoration:none;
+    padding:3px 7px;border:1px solid var(--border);border-radius:1px;text-decoration:none;flex-shrink:0;
     vertical-align:middle;text-transform:uppercase;letter-spacing:.08em;
   }
   .badge-arrived{
     display:inline-block;background:transparent;color:var(--ok);font-size:9.5px;font-weight:700;
-    padding:3px 7px;border:1px solid var(--ok);border-radius:1px;margin-left:8px;text-decoration:none;
+    padding:3px 7px;border:1px solid var(--ok);border-radius:1px;text-decoration:none;flex-shrink:0;
     vertical-align:middle;text-transform:uppercase;letter-spacing:.08em;
   }
   .badge-abituale{
     display:inline-block;background:transparent;color:var(--pranzo);font-size:9.5px;font-weight:700;
-    padding:3px 7px;border:1px solid var(--pranzo);border-radius:1px;margin-left:8px;text-decoration:none;
+    padding:3px 7px;border:1px solid var(--pranzo);border-radius:1px;text-decoration:none;flex-shrink:0;
     vertical-align:middle;text-transform:uppercase;letter-spacing:.08em;
   }
   .res-time{
@@ -284,19 +247,28 @@
   .panel[data-turno="pranzo"] .res-time{color:var(--pranzo);}
   .panel[data-turno="cena"] .res-time{color:var(--cena);}
   .res-info{flex:1;min-width:0;}
+  .res-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .res-name{
-    font-family:var(--font-display);font-size:20px;font-weight:600;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;
+    font-family:var(--font-display);font-size:18px;font-weight:600;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;max-width:220px;min-width:50px;
   }
-  .res-meta{font-size:12px;color:var(--muted);display:flex;gap:12px;margin-top:3px;flex-wrap:wrap;letter-spacing:.01em;align-items:center;}
+  .res-row > *{flex-shrink:0;}
+  .res-row .res-name{flex-shrink:1;}
+  .res-row-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0;}
+  .res-meta-item{font-size:12px;color:var(--muted);letter-spacing:.01em;display:inline-flex;align-items:center;gap:4px;}
   .res-note{font-size:12px;color:var(--muted);font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .res-tavolo-badge{
+    display:inline-flex;align-items:center;justify-content:center;min-width:20px;
+    padding:2px 6px;border:1.5px solid var(--text);border-radius:3px;
+    font-weight:800;font-size:13px;color:var(--text);line-height:1.3;
+  }
   .wa-btn{
-    display:inline-flex;align-items:center;gap:4px;background:transparent;color:#3f8a52;
-    font-size:12px;font-weight:700;text-decoration:none;letter-spacing:.01em;padding:2px 0;
+    display:inline-flex;align-items:center;justify-content:center;background:transparent;color:#3f8a52;
+    font-size:16px;text-decoration:none;padding:2px;line-height:1;
   }
   .wa-btn:active{opacity:.6;}
   .res-status-mini{
-    display:inline-flex;width:14px;height:14px;font-size:10px;line-height:1;margin-left:6px;
+    display:inline-flex;width:11px;height:11px;font-size:8px;line-height:1;
     align-items:center;justify-content:center;opacity:.8;vertical-align:middle;
   }
   .icon-ok{color:var(--ok);}
@@ -311,13 +283,6 @@
   }
   .arrive-btn:active{border-color:var(--text);opacity:1;}
   .arrive-btn.active{background:#dfe8d2;border-color:var(--ok);opacity:1;}
-  .meal-done-btn{
-    font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--warn);
-    border:1px solid #e3c3ba;border-radius:1px;padding:5px 9px;background:transparent;cursor:pointer;flex-shrink:0;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    margin-left:8px;white-space:nowrap;
-  }
-  .meal-done-btn:active{background:#fbf1ee;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
   /* ---------- Modal ---------- */
@@ -402,6 +367,7 @@
   }
   .chip-option:active{border-color:var(--text);}
   .chip-option.selected{background:var(--text);color:var(--card);border-color:var(--text);}
+  .chip-option:disabled{opacity:.3;cursor:not-allowed;}
   .chip-option .chip-count{margin-left:7px;font-size:10px;font-weight:400;opacity:.55;}
   .chip-option.selected .chip-count{opacity:.8;}
 
@@ -663,22 +629,20 @@
       <div class="panel-header">
         <div class="panel-title">
           <span class="panel-icon">&#9728;&#65039;</span> Pranzo <span class="panel-count" id="count-pranzo"></span>
-          <span class="free-tables-wrap">
-            <button type="button" class="free-tables-btn" id="free-tables-btn-pranzo" data-turno="pranzo">Tavoli liberi</button>
-            <div class="free-tables-popup" id="free-tables-popup-pranzo"></div>
-          </span>
         </div>
         <div style="display:flex;align-items:center;">
-          <span class="walkin-wrap">
-            <button type="button" class="walkin-btn" id="walkin-btn-pranzo" data-turno="pranzo" aria-label="Cliente di passaggio" title="Cliente di passaggio (walk-in)">&#128100;</button>
-          </span>
           <button class="toolbar-btn disp-btn" data-turno="pranzo">Disposizione</button>
+          <button type="button" class="edit-selected-btn" data-turno="pranzo" style="display:none;" title="Modifica la prenotazione selezionata">&#9998;</button>
           <button class="add-btn" data-turno="pranzo">+</button>
         </div>
       </div>
       <div class="panel-sala-row">
         <span class="panel-sala-label">Sale extra</span>
         <div class="sala-toggle-row" id="sala-toggle-row-pranzo"></div>
+      </div>
+      <div class="panel-sala-row panel-tavoli-row">
+        <span class="panel-sala-label">Tavoli</span>
+        <div class="tavolo-status-row" id="tavoli-status-row-pranzo"></div>
       </div>
       <div class="orario-breakdown" id="breakdown-pranzo"></div>
       <div class="res-list" id="list-pranzo"></div>
@@ -688,22 +652,20 @@
       <div class="panel-header">
         <div class="panel-title">
           <span class="panel-icon">&#127769;</span> Cena <span class="panel-count" id="count-cena"></span>
-          <span class="free-tables-wrap">
-            <button type="button" class="free-tables-btn" id="free-tables-btn-cena" data-turno="cena">Tavoli liberi</button>
-            <div class="free-tables-popup" id="free-tables-popup-cena"></div>
-          </span>
         </div>
         <div style="display:flex;align-items:center;">
-          <span class="walkin-wrap">
-            <button type="button" class="walkin-btn" id="walkin-btn-cena" data-turno="cena" aria-label="Cliente di passaggio" title="Cliente di passaggio (walk-in)">&#128100;</button>
-          </span>
           <button class="toolbar-btn disp-btn" data-turno="cena">Disposizione</button>
+          <button type="button" class="edit-selected-btn" data-turno="cena" style="display:none;" title="Modifica la prenotazione selezionata">&#9998;</button>
           <button class="add-btn" data-turno="cena">+</button>
         </div>
       </div>
       <div class="panel-sala-row">
         <span class="panel-sala-label">Sale extra</span>
         <div class="sala-toggle-row" id="sala-toggle-row-cena"></div>
+      </div>
+      <div class="panel-sala-row panel-tavoli-row">
+        <span class="panel-sala-label">Tavoli</span>
+        <div class="tavolo-status-row" id="tavoli-status-row-cena"></div>
       </div>
       <div class="orario-breakdown" id="breakdown-cena"></div>
       <div class="res-list" id="list-cena"></div>
@@ -802,11 +764,6 @@
   </div>
 </div>
 
-<!-- Modal Cliente di passaggio (walk-in): sempre centrato a schermo, mai ancorato al pulsante -->
-<div class="overlay" id="walkin-overlay">
-  <div class="modal walkin-modal" id="walkin-modal-body"></div>
-</div>
-
 <!-- Modal Note della giornata: promemoria/cose da fare legate al giorno visualizzato -->
 <div class="overlay" id="notes-modal">
   <div class="modal">
@@ -820,6 +777,19 @@
     <div class="modal-actions">
       <div style="flex:1;"></div>
       <button class="btn btn-primary" id="notes-close-btn">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal conferma "tavolo liberato": tocco su un tavolo rosso (occupato da una prenotazione vera) -->
+<div class="overlay" id="tavolo-libera-modal">
+  <div class="modal" style="width:360px;">
+    <h2>Tavolo liberato?</h2>
+    <p id="tavolo-libera-testo" style="font-size:14px;color:var(--muted);margin-top:-8px;"></p>
+    <div class="modal-actions">
+      <div style="flex:1;"></div>
+      <button class="btn btn-secondary" id="tavolo-libera-annulla-btn">Annulla</button>
+      <button class="btn btn-primary" id="tavolo-libera-conferma-btn">Sì, si è liberato</button>
     </div>
   </div>
 </div>
@@ -907,7 +877,7 @@ alter table prenotazioni add column if not exists cancellato_at timestamptz;</pr
       <pre>alter table prenotazioni add column if not exists posizione text;</pre>
     </div>
     <div class="alter-box">
-      <p><b>Novita "Primo turno" e "Tavoli liberi":</b> se la tua tabella esiste gia, esegui anche questo comando una sola volta per aggiungere il campo necessario. Il pulsante "Tavoli liberi" accanto a Pranzo/Cena non richiede invece nessuna modifica al database.</p>
+      <p><b>Novita "Primo turno":</b> se la tua tabella esiste gia, esegui anche questo comando una sola volta per aggiungere il campo necessario.</p>
       <pre>alter table prenotazioni add column if not exists primo_turno boolean not null default false;</pre>
     </div>
     <div class="alter-box">
@@ -1004,6 +974,25 @@ update sale_giorno set turno = 'pranzo' where turno is null;
 alter table sale_giorno add primary key (data, turno);</pre>
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se il comando "drop constraint" da' errore perche' il vincolo ha un altro nome, guarda il nome esatto in Database &rarr; Tables &rarr; sale_giorno &rarr; Constraints nel pannello Supabase e usalo al posto di <code>sale_giorno_pkey</code>.</p>
     </div>
+    <div class="alter-box">
+      <p><b>Novita "Tavoli" (ha sostituito "Tavoli liberi" e "Cliente di passaggio"):</b> ogni tavolo del servizio compare come tag colorato (verde = libero, rosso = occupato, giallo = prenotato per le 21:00/21:30) e si tocca per segnarlo occupato/libero al volo, senza aprire nessuna schermata. Un tavolo gia' assegnato da Disposizione a una prenotazione diventa rosso automaticamente e non si tocca da qui. Per salvare questa scelta nel cloud esegui una sola volta questo script nell'SQL Editor:</p>
+      <pre>create table if not exists tavoli_occupati_giorno (
+  data date not null,
+  turno text not null,
+  tavoli text,
+  primary key (data, turno)
+);
+
+alter table tavoli_occupati_giorno enable row level security;
+
+create policy "solo utenti autenticati - tavoli_occupati_giorno"
+on tavoli_occupati_giorno for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+
+alter publication supabase_realtime add table tavoli_occupati_giorno;</pre>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se non hai ancora attivato il login, sostituisci la riga "create policy" con <code>using (true) with check (true)</code>. Senza questa tabella i tocchi sui tavoli funzionano comunque, ma solo sul dispositivo su cui li tocchi (non si sincronizzano).</p>
+    </div>
 
     <h2 style="margin-top:30px;">Tavoli del locale</h2>
     <p>Aggiungi qui l'elenco dei tavoli, ciascuno assegnato alla sua sala: ti serviranno nella modalita "Crea disposizione" per assegnare i tavoli alle prenotazioni con un tocco. Le sale Saletta, Osteria, Negozio e Plastic si usano sempre; Sopra, Cantina e Fuori sono occasionali e si attivano/disattivano con i pulsanti "Sale extra" in cima a Pranzo e a Cena (rosso = spenta, verde = accesa), separatamente per ogni servizio (es. puoi tenere Sopra accesa solo a pranzo): quando una sala e' spenta per quel servizio, i suoi tavoli non compaiono in "Tavoli liberi" ne' in "Disposizione" per quel turno.</p>
@@ -1098,6 +1087,7 @@ const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/
 const TABLE = "prenotazioni";
 const NOTE_TABLE = "note_giorno";
 const SALA_TABLE = "sale_giorno";
+const TAVOLI_MANUALI_TABLE = "tavoli_occupati_giorno";
 let supabaseClient = null;
 let cloudMode = false;
 let realtimeChannel = null;
@@ -1183,6 +1173,10 @@ function subscribeRealtime() {
       renderSalaToggleButtons();
       render();
       renderDisposizione();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: TAVOLI_MANUALI_TABLE }, async () => {
+      await loadTavoliManuali();
+      renderTavoliStatusRow();
     })
     .subscribe();
 }
@@ -1411,36 +1405,34 @@ function render() {
       return;
     }
     listEl[turno].innerHTML = items.map(r => `
-      <div class="res-card ${r.cancellato ? "cancelled" : ""} ${r.arrivato ? "arrived" : ""}" data-id="${r.id}">
+      <div class="res-card ${r.cancellato ? "cancelled" : ""} ${r.arrivato ? "arrived" : ""} ${r.id === selectedResId ? "selected" : ""}" data-id="${r.id}">
         <div class="res-time">${r.orario.slice(0,5)}</div>
         <div class="res-info">
-          <div class="res-name">${escapeHtml(r.nome)}${iconFor(r._status)}${r.cancellato ? `<span class="badge-cancelled">Disdetta</span>` : ""}${(!r.cancellato && r.arrivato) ? `<span class="badge-arrived">In sala</span>` : ""}${(!r.cancellato && r.abituale) ? `<span class="badge-abituale">&#11088; Abituale</span>` : ""}</div>
-          <div class="res-meta">
-            <span>&#128101; ${r.ospiti} ${r.ospiti == 1 ? "ospite" : "ospiti"}</span>
-            ${r.tavolo ? `<span>&#127860; Tavolo ${escapeHtml(r.tavolo)}</span>` : ""}
-            ${r.posizione === "dentro" ? `<span>&#127968; Dentro</span>` : ""}
-            ${r.posizione === "fuori" ? `<span>&#9728;&#65039; Fuori</span>` : ""}
-            ${r.primo_turno ? `<span>&#128260; Primo turno</span>` : ""}
-            ${r.telefono ? `<span>&#128222; ${escapeHtml(r.telefono)}</span>` : ""}
-            ${r.utente ? `<span>&#128100; ${escapeHtml(r.utente)}</span>` : ""}
-            ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">&#128172; Invia conferma</a>` : ""}
+          <div class="res-row">
+            <span class="res-name">${escapeHtml(r.nome)}</span>
+            ${iconFor(r._status)}
+            ${r.cancellato ? `<span class="badge-cancelled">Disdetta</span>` : ""}
+            ${(!r.cancellato && r.arrivato) ? `<span class="badge-arrived">In sala</span>` : ""}
+            ${(!r.cancellato && r.abituale) ? `<span class="badge-abituale">&#11088; Abituale</span>` : ""}
+            ${r.tavolo ? `<span class="res-tavolo-badge">${escapeHtml(r.tavolo)}</span>` : ""}
+            <span class="res-meta-item">&#128101; ${r.ospiti} ${r.ospiti == 1 ? "ospite" : "ospiti"}</span>
+            <div class="res-row-right">
+              ${r.posizione === "dentro" ? `<span title="Dentro">&#127968;</span>` : ""}
+              ${r.posizione === "fuori" ? `<span title="Fuori">&#9728;&#65039;</span>` : ""}
+              ${r.primo_turno ? `<span class="res-meta-item" title="Primo turno">&#128260; Primo turno</span>` : ""}
+              ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Invia conferma WhatsApp">&#128172;</a>` : ""}
+            </div>
           </div>
           ${r.note ? `<div class="res-note">${escapeHtml(r.note)}</div>` : ""}
         </div>
         ${!r.cancellato ? `<button type="button" class="arrive-btn ${r.arrivato ? "active" : ""}" data-id="${r.id}" title="${r.arrivato ? "Segna come non ancora arrivati" : "Segna come arrivati e seduti"}">&#129681;</button>` : ""}
-        ${(!r.cancellato && r.arrivato && parseTavoli(r.tavolo).length) ? `<button type="button" class="meal-done-btn" data-meal-done-id="${r.id}" title="Libera il tavolo/i quando hanno finito di mangiare">${r.turno === "pranzo" ? "Pranzo finito" : "Cena finita"}</button>` : ""}
       </div>
     `).join("");
   });
   renderWeekStrip();
   updateAddButtonsState();
-  updateWalkinButtonsState();
-  ["pranzo", "cena"].forEach(turno => {
-    if ($(`#free-tables-popup-${turno}`).classList.contains("show")) renderFreeTablesPopup(turno);
-  });
-  if ($("#walkin-overlay").classList.contains("show")) {
-    if (walkinTable) renderWalkinStep2(); else renderWalkinStep1();
-  }
+  renderTavoliStatusRow();
+  updateEditSelectedButton();
 }
 
 // Non si possono creare nuove prenotazioni per un giorno gia' passato: i
@@ -1454,6 +1446,26 @@ function updateAddButtonsState() {
   });
 }
 
+/* ---------- Selezione prenotazione (doppio tocco) ----------
+   Un tocco singolo su una prenotazione non fa piu' nulla (evita di aprire
+   per sbaglio la modifica). Un doppio tocco la seleziona (evidenziata) e fa
+   comparire, accanto al pulsante "+" del relativo servizio, una matita per
+   aprirne la modifica solo quando lo si vuole davvero. */
+let selectedResId = null;
+
+function updateEditSelectedButton() {
+  const key = dateKey(currentDate);
+  const r = selectedResId ? reservations.find(x => x.id === selectedResId && x.data === key) : null;
+  document.querySelectorAll(".edit-selected-btn").forEach(btn => {
+    btn.style.display = (r && r.turno === btn.dataset.turno) ? "flex" : "none";
+  });
+}
+
+function toggleResSelection(id) {
+  selectedResId = (selectedResId === id) ? null : id;
+  render();
+}
+
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
@@ -1462,6 +1474,7 @@ async function loadForDate() {
   const key = dateKey(currentDate);
   await loadNotesForDate();
   await loadSaleGiorno();
+  await loadTavoliManuali();
   if (!cloudMode) {
     if (!demoSeeded) seedDemoData();
     await purgeExpiredCancellations();
@@ -1992,21 +2005,28 @@ document.querySelectorAll(".add-btn").forEach(btn => {
   btn.addEventListener("click", () => openNewModal(btn.dataset.turno));
 });
 
+document.querySelectorAll(".edit-selected-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const key = dateKey(currentDate);
+    const r = selectedResId ? reservations.find(x => x.id === selectedResId && x.data === key) : null;
+    if (r) openEditModal(r);
+  });
+});
+
 document.querySelectorAll(".res-list").forEach(list => {
+  // Un tocco singolo su una prenotazione non fa piu' nulla: evita di aprire
+  // per sbaglio la modifica. Serve un doppio tocco per selezionarla
+  // (evidenziata), poi si modifica dalla matita accanto al "+".
   list.addEventListener("click", (e) => {
     const arriveBtn = e.target.closest(".arrive-btn");
     if (arriveBtn) { toggleArrivato(arriveBtn.dataset.id); return; }
-    const mealDoneBtn = e.target.closest("[data-meal-done-id]");
-    if (mealDoneBtn) {
-      // "Pranzo finito"/"Cena finita": libera il tavolo/i appena hanno
-      // finito di mangiare, senza dover aprire Disposizione.
-      setTavoloForReservation(mealDoneBtn.dataset.mealDoneId, "");
-      return;
-    }
+    // Tocco singolo sulla riga stessa: nessuna azione (richiesto esplicitamente).
+  });
+  list.addEventListener("dblclick", (e) => {
+    if (e.target.closest(".arrive-btn") || e.target.closest(".wa-btn")) return;
     const card = e.target.closest(".res-card");
     if (!card) return;
-    const r = reservations.find(x => x.id === card.dataset.id);
-    if (r) openEditModal(r);
+    toggleResSelection(card.dataset.id);
   });
 });
 
@@ -2236,6 +2256,7 @@ async function loadTables() {
   }
   renderTagList();
   renderDisposizione();
+  renderTavoliStatusRow();
 }
 
 async function saveTablesToCloud() {
@@ -2305,6 +2326,7 @@ async function addTavolo() {
   input.value = "";
   renderTagList();
   renderDisposizione();
+  renderTavoliStatusRow();
   await saveTablesToCloud();
   setTimeout(() => input.focus(), 30);
 }
@@ -2319,6 +2341,7 @@ $("#tavoli-by-sala").addEventListener("click", async (e) => {
   tables = tables.filter(t => t.nome !== btn.dataset.nome);
   renderTagList();
   renderDisposizione();
+  renderTavoliStatusRow();
   await saveTablesToCloud();
 });
 
@@ -2513,286 +2536,135 @@ document.querySelectorAll(".sala-toggle-row").forEach(row => {
   });
 });
 
-/* ---------- Popup "Tavoli liberi" (accanto a Pranzo/Cena) ----------
-   Mostra, senza dover aprire "Disposizione", quali tavoli non sono ancora
-   stati assegnati a nessuna prenotazione di quel turno/giorno. I tavoli
-   delle sale spente per oggi non compaiono mai qui. */
-function freeTablesForTurno(turno) {
-  const vTables = visibleTables(turno);
-  if (!vTables.length) return [];
+// Orari "da ultimo turno": un tavolo prenotato (in modo normale, non manuale)
+// solo a una di queste ore mostra il colore giallo invece di rosso, perche'
+// non e' ancora davvero occupato adesso.
+const ULTIMO_TURNO_ORARI = ["21:00", "21:30"];
+
+/* ---------- Stato dei tavoli (verde/giallo/rosso), per Pranzo e Cena ----------
+   Sostituisce "Tavoli liberi" e "Cliente di passaggio": ogni tavolo visibile
+   compare come tag colorato, toccabile per segnarlo occupato/libero al volo
+   (senza creare nessuna prenotazione). Se il tavolo e' gia' assegnato da
+   Disposizione a una prenotazione vera, il colore e' rosso automaticamente e
+   il tag non e' piu' toccabile da qui (si gestisce da Disposizione). */
+let tavoliManualiByDate = {}; // cache lato client: { "2026-08-18": { pranzo: ["3"], cena: ["7"] }, ... }
+
+async function loadTavoliManuali() {
   const key = dateKey(currentDate);
-  const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
-  const assigned = new Set();
-  items.forEach(r => parseTavoli(r.tavolo).forEach(t => assigned.add(t)));
-  return vTables.filter(t => !assigned.has(t.nome)).map(t => t.nome);
-}
-
-function renderFreeTablesPopup(turno) {
-  const popup = $(`#free-tables-popup-${turno}`);
-  if (!popup) return;
-  if (!tables.length) {
-    popup.innerHTML = `<div class="free-tables-popup-title">Tavoli liberi</div><p class="free-tables-empty">Nessun tavolo configurato: aggiungilo dalle Impostazioni.</p>`;
-    return;
-  }
-  const vTables = visibleTables(turno);
-  if (!vTables.length) {
-    popup.innerHTML = `<div class="free-tables-popup-title">Tavoli liberi</div><p class="free-tables-empty">Nessuna sala attiva per oggi: accendi Sopra/Cantina/Fuori qui sopra, oppure configura tavoli in Saletta/Osteria/Negozio/Plastic.</p>`;
-    return;
-  }
-  const free = freeTablesForTurno(turno);
-  popup.innerHTML = `
-    <div class="free-tables-popup-title">Tavoli liberi — ${free.length} su ${vTables.length}</div>
-    ${free.length
-      ? `<div class="free-tables-popup-list">${free.map(t => `<span class="free-tables-chip">${escapeHtml(t)}</span>`).join("")}</div>`
-      : `<p class="free-tables-empty">Nessun tavolo libero per questo turno.</p>`}
-  `;
-}
-
-// I popup "a nuvoletta" (Tavoli liberi, Cliente di passaggio) si spostano
-// come figli diretti di <body> e si posizionano con coordinate calcolate dal
-// pulsante che li apre: i pannelli Pranzo/Cena hanno "overflow:hidden" (per
-// contenere correttamente lo scroll interno dell'elenco prenotazioni), che
-// altrimenti ritaglierebbe via questi popup rendendoli invisibili/non
-// cliccabili pur essendo tecnicamente presenti nella pagina.
-function positionFixedPopup(popup, btn) {
-  if (popup.parentElement !== document.body) document.body.appendChild(popup);
-  const rect = btn.getBoundingClientRect();
-  popup.style.top = (rect.bottom + 12) + "px";
-  popup.style.left = rect.left + "px";
-}
-
-function closeAllFreeTablesPopups() {
-  ["pranzo", "cena"].forEach(turno => {
-    $(`#free-tables-popup-${turno}`).classList.remove("show");
-    $(`#free-tables-btn-${turno}`).classList.remove("active");
-  });
-}
-
-document.querySelectorAll(".free-tables-btn").forEach(btn => {
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const turno = btn.dataset.turno;
-    const popup = $(`#free-tables-popup-${turno}`);
-    const wasOpen = popup.classList.contains("show");
-    closeAllFreeTablesPopups();
-    if (!wasOpen) {
-      renderFreeTablesPopup(turno);
-      positionFixedPopup(popup, btn);
-      popup.classList.add("show");
-      btn.classList.add("active");
+  if (!cloudMode) return;
+  const { data, error } = await supabaseClient.from(TAVOLI_MANUALI_TABLE).select("turno,tavoli").eq("data", key);
+  if (error) { console.error("Errore caricamento tavoli occupati manualmente:", error); return; }
+  const perTurno = { pranzo: [], cena: [] };
+  (data || []).forEach(row => {
+    if (perTurno[row.turno] !== undefined) {
+      perTurno[row.turno] = row.tavoli ? String(row.tavoli).split(",").filter(Boolean) : [];
     }
   });
-});
-document.addEventListener("click", (e) => {
-  if (!e.target.closest(".free-tables-wrap") && !e.target.closest(".free-tables-popup")) closeAllFreeTablesPopups();
-});
-
-/* ---------- Cliente di passaggio (walk-in) ----------
-   Permette di aggiungere in pochi tocchi un cliente arrivato senza
-   prenotazione: si tocca un tavolo disponibile (libero, oppure gia'
-   occupato da un solo "Primo turno" e quindi condivisibile per il "Secondo
-   turno"), poi il tipo di occupazione e il numero di ospiti. Disponibile
-   solo per la giornata di oggi: un walk-in, per definizione, arriva adesso. */
-let walkinTurno = null;
-let walkinTable = null;
-let walkinMode = null;   // "free" | "secondo"
-let walkinTipo = null;   // "unico" | "primo" | "secondo"
-let walkinOspiti = null;
-const WALKIN_OSPITI_CHIPS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
-
-function isTodayView() {
-  return dateKey(currentDate) === dateKey(new Date());
+  tavoliManualiByDate[key] = perTurno;
 }
 
-function updateWalkinButtonsState() {
-  const disabled = !isTodayView();
-  document.querySelectorAll(".walkin-btn").forEach(btn => {
-    btn.disabled = disabled;
-    btn.title = disabled ? "Disponibile solo per la giornata di oggi" : "Cliente di passaggio (walk-in)";
-  });
+async function toggleTavoloManuale(turno, tavolo) {
+  const key = dateKey(currentDate);
+  if (!tavoliManualiByDate[key]) tavoliManualiByDate[key] = { pranzo: [], cena: [] };
+  const current = tavoliManualiByDate[key][turno] || [];
+  const next = current.includes(tavolo) ? current.filter(t => t !== tavolo) : [...current, tavolo];
+  tavoliManualiByDate[key][turno] = next;
+  renderTavoliStatusRow();
+  if (cloudMode) {
+    const { error } = await supabaseClient.from(TAVOLI_MANUALI_TABLE).upsert({ data: key, turno, tavoli: next.join(",") }, { onConflict: "data,turno" });
+    if (error) console.error("Errore salvataggio tavoli occupati manualmente:", error);
+  }
 }
 
-// Tavoli che si possono proporre per un walk-in in un turno:
-// - del tutto liberi (nessuna prenotazione): assegnabili come "Turno unico"
-//   o "Primo turno";
-// - gia' occupati da UNA SOLA prenotazione "Primo turno": assegnabili SOLO
-//   come "Secondo turno", condividendo il tavolo senza sfrattare nessuno;
-// - gia' occupati da UNA SOLA prenotazione normale (es. un tavolo prenotato
-//   piu' tardi, alle 21:00): assegnabili SOLO come "Primo turno", perche' il
-//   walk-in arriva prima e dovra' liberare il tavolo in tempo per chi ha gia'
-//   prenotato.
-// Orari "da ultimo turno": un tavolo prenotato (in modo normale, non "primo
-// turno") solo a una di queste ore e' abbastanza tardi da poter comunque
-// essere proposto per un walk-in nel frattempo, come "Primo turno".
-const WALKIN_PRIMO_ONLY_ORARI = ["21:00", "21:30"];
-
-function walkInSelectableTables(turno) {
-  const vTables = visibleTables(turno);
+function tavoloStatusInfo(turno, nomeTavolo) {
   const key = dateKey(currentDate);
   const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
-  const out = [];
-  vTables.forEach(t => {
-    const owners = items.filter(r => parseTavoli(r.tavolo).includes(t.nome));
-    if (owners.length === 0) out.push({ nome: t.nome, mode: "free" });
-    else if (owners.length === 1 && owners[0].primo_turno) out.push({ nome: t.nome, mode: "secondo" });
-    else if (owners.length === 1 && !owners[0].primo_turno && WALKIN_PRIMO_ONLY_ORARI.includes((owners[0].orario || "").slice(0, 5))) {
-      out.push({ nome: t.nome, mode: "primo_only" });
-    }
-  });
-  return out;
+  const owners = items.filter(r => parseTavoli(r.tavolo).includes(nomeTavolo));
+  const manuale = ((tavoliManualiByDate[key] && tavoliManualiByDate[key][turno]) || []).includes(nomeTavolo);
+  const soloPrenotazioneTarda = owners.length === 1 && ULTIMO_TURNO_ORARI.includes((owners[0].orario || "").slice(0, 5));
+
+  if (owners.length > 0 && !soloPrenotazioneTarda) {
+    const sub = owners.length > 1 ? `${owners[0].nome} +${owners.length - 1}` : owners[0].nome;
+    return { stato: "occupato", locked: true, sub };
+  }
+  if (soloPrenotazioneTarda) {
+    if (manuale) return { stato: "occupato", locked: false, sub: null };
+    return { stato: "tardi", locked: false, sub: owners[0].orario.slice(0, 5) };
+  }
+  if (manuale) return { stato: "occupato", locked: false, sub: null };
+  return { stato: "libero", locked: false, sub: null };
 }
 
-function closeAllWalkinPopups() {
-  $("#walkin-overlay").classList.remove("show");
+function renderTavoliStatusRow() {
   ["pranzo", "cena"].forEach(turno => {
-    $(`#walkin-btn-${turno}`).classList.remove("active");
+    const el = $(`#tavoli-status-row-${turno}`);
+    if (!el) return;
+    const vTables = visibleTables(turno);
+    if (!vTables.length) {
+      el.innerHTML = `<p class="tavoli-status-empty">Nessun tavolo attivo per questo servizio.</p>`;
+      return;
+    }
+    el.innerHTML = vTables.map(t => {
+      const info = tavoloStatusInfo(turno, t.nome);
+      return `
+        <button type="button" class="tavolo-status-chip ${info.stato} ${info.locked ? "locked" : ""}" data-turno="${turno}" data-tavolo="${escapeHtml(t.nome)}">
+          <span>${escapeHtml(t.nome)}</span>
+          ${info.sub ? `<span class="tsc-sub">${escapeHtml(info.sub)}</span>` : ""}
+        </button>
+      `;
+    }).join("");
   });
-  walkinTurno = null;
-  walkinTable = null;
-  walkinMode = null;
-  walkinTipo = null;
-  walkinOspiti = null;
 }
 
-// Il popup e' un unico modale condiviso, sempre centrato a schermo (mai
-// ancorato al pulsante che lo apre): su tablet il pulsante puo' trovarsi
-// vicino al bordo, e un popup "a tendina" ancorato finirebbe fuori schermo.
-function openWalkinPopup(turno) {
-  walkinTurno = turno;
-  walkinTable = null;
-  walkinMode = null;
-  walkinTipo = null;
-  walkinOspiti = null;
-  renderWalkinStep1();
-  $("#walkin-overlay").classList.add("show");
-  $(`#walkin-btn-${turno}`).classList.add("active");
-}
-
-function renderWalkinStep1() {
-  const turno = walkinTurno;
-  const modal = $("#walkin-modal-body");
-  if (!modal) return;
-  const selectable = walkInSelectableTables(turno);
-  modal.innerHTML = `
-    <div class="walkin-popup-title">Cliente di passaggio</div>
-    ${selectable.length
-      ? `<div class="walkin-table-list">${selectable.map(t => `
-          <button type="button" class="walkin-table-row" data-table="${escapeHtml(t.nome)}" data-mode="${t.mode}">
-            <span>${escapeHtml(t.nome)}</span>
-            ${t.mode === "secondo" ? `<span class="wt-hint">2&deg; turno</span>` : ""}
-            ${t.mode === "primo_only" ? `<span class="wt-hint">Prenotato piu' tardi</span>` : ""}
-          </button>
-        `).join("")}</div>`
-      : `<p class="walkin-empty">Nessun tavolo disponibile al momento per questo turno.</p>`}
-  `;
-}
-
-function renderWalkinStep2() {
-  const modal = $("#walkin-modal-body");
-  if (!modal) return;
-  const tipoOptions = [
-    { key: "unico", label: "Turno unico" },
-    { key: "primo", label: "Primo turno" },
-    { key: "secondo", label: "Secondo turno" },
-  ];
-  modal.innerHTML = `
-    <div class="walkin-popup-title"><button type="button" class="walkin-back-btn" id="walkin-back-btn">&larr; Cambia tavolo</button></div>
-    <div class="walkin-selected-table">Tavolo ${escapeHtml(walkinTable)}</div>
-    <div class="walkin-field">
-      <div class="walkin-field-label">Tipo di occupazione</div>
-      <div class="chip-select" id="walkin-tipo-chip">
-        ${tipoOptions.map(o => {
-          // Su un tavolo libero ha senso solo "Turno unico"/"Primo turno"; su
-          // un tavolo gia' occupato da un "Primo turno" ha senso solo
-          // "Secondo turno" (si condivide, non si sfratta nessuno); su un
-          // tavolo gia' prenotato piu' tardi da una prenotazione normale ha
-          // senso solo "Primo turno" (il walk-in arriva prima e dovra'
-          // liberare il tavolo in tempo).
-          const enabled =
-            walkinMode === "secondo" ? (o.key === "secondo") :
-            walkinMode === "primo_only" ? (o.key === "primo") :
-            (o.key !== "secondo");
-          return `<button type="button" class="chip-option ${walkinTipo === o.key ? "selected" : ""}" data-tipo="${o.key}" ${enabled ? "" : "disabled"}>${o.label}</button>`;
-        }).join("")}
-      </div>
-      ${walkinMode === "free" ? `<p class="walkin-hint">"Secondo turno" si attiva solo sui tavoli gia' occupati da una prenotazione con "Primo turno" impostato (lo trovi nel modulo di modifica prenotazione, o creando qui il walk-in come "Primo turno").</p>` : ""}
-      ${walkinMode === "primo_only" ? `<p class="walkin-hint">Questo tavolo ha gia' una prenotazione piu' tardi oggi: puoi assegnarlo solo come "Primo turno", cosi' sai che va liberato in tempo.</p>` : ""}
-    </div>
-    <div class="walkin-field">
-      <div class="walkin-field-label">Numero ospiti</div>
-      <div class="chip-select" id="walkin-ospiti-chip">
-        ${WALKIN_OSPITI_CHIPS.map(v => `<button type="button" class="chip-option ${walkinOspiti === v ? "selected" : ""}" data-ospiti="${v}">${v}</button>`).join("")}
-      </div>
-    </div>
-    <button type="button" class="btn btn-primary walkin-confirm-btn" id="walkin-confirm-btn" ${(walkinTipo && walkinOspiti) ? "" : "disabled"}>Aggiungi</button>
-  `;
-}
-
-function selectWalkinTable(nome, mode) {
-  walkinTable = nome;
-  walkinMode = mode;
-  // Su un tavolo condiviso ("secondo") o gia' prenotato piu' tardi
-  // ("primo_only") c'e' un'unica scelta possibile: la pre-selezioniamo.
-  walkinTipo = (mode === "secondo") ? "secondo" : (mode === "primo_only") ? "primo" : null;
-  walkinOspiti = null;
-  renderWalkinStep2();
-}
-
-async function confirmWalkin() {
-  if (!walkinTipo || !walkinOspiti || !walkinTable || !walkinTurno) return;
-  const now = new Date();
-  const orario = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:00`;
-  const payload = {
-    data: dateKey(currentDate),
-    turno: walkinTurno,
-    nome: "Cliente di passaggio",
-    orario,
-    ospiti: Number(walkinOspiti),
-    tavolo: walkinTable,
-    posizione: "",
-    telefono: "",
-    note: "",
-    utente: lastEmployee || "",
-    abituale: false,
-    primo_turno: walkinTipo === "primo",
-    arrivato: true, // e' gia' fisicamente presente
-  };
-  closeAllWalkinPopups();
-  const tempId = cryptoId();
-  reservations.push({ id: tempId, ...payload, _status: "pending" });
-  render();
-  renderDisposizione();
-  await persist(tempId, payload, false);
-  renderDisposizione();
-}
-
-document.querySelectorAll(".walkin-btn").forEach(btn => {
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (btn.disabled) return;
-    const turno = btn.dataset.turno;
-    const wasOpenSameTurno = $("#walkin-overlay").classList.contains("show") && walkinTurno === turno;
-    closeAllWalkinPopups();
-    if (!wasOpenSameTurno) openWalkinPopup(turno);
+document.querySelectorAll(".tavolo-status-row").forEach(row => {
+  row.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tavolo-status-chip");
+    if (!btn) return;
+    if (btn.classList.contains("locked")) {
+      // Tavolo occupato da una prenotazione vera: un tocco diretto non lo
+      // libera subito, chiede prima conferma (vedi apriTavoloLiberaModal).
+      apriTavoloLiberaModal(btn.dataset.turno, btn.dataset.tavolo);
+      return;
+    }
+    toggleTavoloManuale(btn.dataset.turno, btn.dataset.tavolo);
   });
 });
-// Click sullo sfondo scuro (fuori dalla scheda centrale) chiude il modale,
-// come gli altri modali dell'app (es. #res-modal).
-$("#walkin-overlay").addEventListener("click", (e) => {
-  if (e.target === $("#walkin-overlay")) closeAllWalkinPopups();
-});
-$("#walkin-modal-body").addEventListener("click", (e) => {
-  e.stopPropagation();
-  const tableRow = e.target.closest(".walkin-table-row");
-  if (tableRow) { selectWalkinTable(tableRow.dataset.table, tableRow.dataset.mode); return; }
-  const backBtn = e.target.closest("#walkin-back-btn");
-  if (backBtn) { renderWalkinStep1(); return; }
-  const tipoChip = e.target.closest("#walkin-tipo-chip .chip-option");
-  if (tipoChip && !tipoChip.disabled) { walkinTipo = tipoChip.dataset.tipo; renderWalkinStep2(); return; }
-  const ospitiChip = e.target.closest("#walkin-ospiti-chip .chip-option");
-  if (ospitiChip) { walkinOspiti = ospitiChip.dataset.ospiti; renderWalkinStep2(); return; }
-  const confirmBtn = e.target.closest("#walkin-confirm-btn");
-  if (confirmBtn && !confirmBtn.disabled) { confirmWalkin(); return; }
+
+/* ---------- Conferma "tavolo liberato" ----------
+   Tocco su un tavolo rosso gia' assegnato da Disposizione a una prenotazione
+   vera: chiede conferma prima di liberarlo, cosi' come faceva il vecchio
+   pulsante "Pranzo finito"/"Cena finita" (ora rimosso). Se il tavolo era
+   condiviso fra piu' prenotazioni (primo turno), si toglie solo da quelle
+   e le altre restano intatte con i propri eventuali altri tavoli. */
+let tavoloLiberaTarget = null; // { turno, tavolo }
+
+function apriTavoloLiberaModal(turno, tavolo) {
+  tavoloLiberaTarget = { turno, tavolo };
+  $("#tavolo-libera-testo").textContent = `Confermi che il tavolo ${tavolo} si e' liberato?`;
+  $("#tavolo-libera-modal").classList.add("show");
+}
+
+function chiudiTavoloLiberaModal() {
+  tavoloLiberaTarget = null;
+  $("#tavolo-libera-modal").classList.remove("show");
+}
+
+async function confermaTavoloLiberato() {
+  if (!tavoloLiberaTarget) return;
+  const { turno, tavolo } = tavoloLiberaTarget;
+  const key = dateKey(currentDate);
+  const owners = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato && parseTavoli(r.tavolo).includes(tavolo));
+  chiudiTavoloLiberaModal();
+  for (const owner of owners) {
+    const rimanenti = parseTavoli(owner.tavolo).filter(t => t !== tavolo);
+    await setTavoloForReservation(owner.id, joinTavoli(rimanenti));
+  }
+}
+
+$("#tavolo-libera-annulla-btn").addEventListener("click", chiudiTavoloLiberaModal);
+$("#tavolo-libera-conferma-btn").addEventListener("click", confermaTavoloLiberato);
+$("#tavolo-libera-modal").addEventListener("click", (e) => {
+  if (e.target.id === "tavolo-libera-modal") chiudiTavoloLiberaModal();
 });
 
 function openDisposizione(turno) {
