@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Agenda Prenotazioni</title>
+
+<!-- PWA: permette "Aggiungi a Home" su iPad/iPhone/Android con icona a
+     schermo intero e caricamento della pagina anche offline. Questi file
+     (manifest.json, sw.js, la cartella icons/) devono stare caricati sul
+     sito accanto a questa stessa pagina index.html. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#a37a4a">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Agenda">
+
 <!-- Font decorativo per titoli e data: se la rete non e disponibile, il testo
      usa semplicemente il font di sistema (nessun impatto sul funzionamento). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -103,6 +117,19 @@
     align-items:center;justify-content:center;line-height:1;
   }
   .notes-badge.show{display:inline-flex;}
+  .conflicts-btn{display:none;}
+  .conflicts-btn.show{display:inline-flex;}
+  .conflict-card{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;background:var(--card);}
+  .conflict-card-title{font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--text);}
+  .conflict-card-sub{font-size:12.5px;color:var(--muted);margin:4px 0 10px;}
+  .conflict-fields{display:flex;flex-direction:column;gap:8px;}
+  .conflict-field-row{border-top:1px solid var(--border);padding-top:8px;}
+  .conflict-field-row:first-child{border-top:none;padding-top:0;}
+  .conflict-field-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin-bottom:3px;}
+  .conflict-field-values{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;}
+  .conflict-value{padding:3px 9px;border-radius:1px;}
+  .conflict-value-mine{background:var(--cena-light);color:var(--cena);}
+  .conflict-value-other{background:var(--pranzo-light);color:var(--pranzo);}
   .status-pill{
     display:inline-flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted);
     padding:8px 13px;border-radius:1px;background:transparent;border:1px solid var(--border);
@@ -599,6 +626,7 @@
       <button id="next-day" aria-label="giorno successivo">&#8250;</button>
       <button class="today-btn" id="today-btn">Oggi</button>
       <button class="today-btn notes-btn" id="notes-btn" aria-label="Note della giornata" title="Note della giornata">&#128221;<span class="notes-badge" id="notes-badge"></span></button>
+      <button class="today-btn notes-btn conflicts-btn" id="conflicts-btn" aria-label="Conflitti di sincronizzazione" title="Conflitti di sincronizzazione">&#9888;&#65039;<span class="notes-badge" id="conflicts-badge"></span></button>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span class="status-pill" id="conn-status"><span class="status-dot"></span><span id="conn-label">verifica...</span></span>
@@ -787,6 +815,20 @@
     <div class="modal-actions">
       <div style="flex:1;"></div>
       <button class="btn btn-primary" id="notes-close-btn">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal conflitti di sincronizzazione: prenotazioni modificate sia offline
+     da questo dispositivo sia, nel frattempo, da un altro. -->
+<div class="overlay" id="conflicts-modal">
+  <div class="modal">
+    <h2>Conflitti di sincronizzazione</h2>
+    <p class="notes-sub">Queste prenotazioni sono state modificate da questo dispositivo mentre era offline, ma anche da un altro dispositivo nello stesso periodo. La tua modifica e' stata comunque inviata: controlla qui sotto qual e' la versione giusta.</p>
+    <div id="conflicts-list"></div>
+    <div class="modal-actions">
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" id="conflicts-close-btn">Chiudi</button>
     </div>
   </div>
 </div>
@@ -1121,6 +1163,53 @@ let pendingOpsCount = 0;
 let outboxDraining = false;
 let cacheSaveTimer = null;
 
+// Ultima versione di ogni prenotazione CONFERMATA dal server (non quella
+// locale, che puo' contenere modifiche fatte offline non ancora inviate):
+// serve da "prima" per capire, quando una modifica offline viene inviata,
+// se nel frattempo qualcun altro ha cambiato la stessa prenotazione da un
+// altro dispositivo. Vedi checkReservationConflict() piu' sotto.
+let lastSyncedSnapshot = {};
+// Elenco dei conflitti rilevati (una prenotazione modificata sia da questo
+// dispositivo offline sia da un altro nel frattempo), da mostrare allo
+// staff per un controllo manuale. Non blocca mai il salvataggio: la
+// modifica di questo dispositivo viene comunque inviata (come sempre),
+// ma qui restano tracciate per la revisione.
+let syncConflicts = [];
+
+const CONFLICT_FIELD_LABELS = {
+  nome: "Nome cliente",
+  orario: "Orario",
+  ospiti: "Numero ospiti",
+  tavolo: "Tavolo",
+  telefono: "Telefono",
+  note: "Note",
+  posizione: "Posizione",
+  abituale: "Cliente abituale",
+  primo_turno: "Primo turno",
+  cancellato: "Disdetta",
+  cancellato_at: "Data disdetta",
+  arrivato: "Arrivato",
+  utente: "Utente",
+  turno: "Turno",
+  data: "Data",
+};
+
+function formatConflictValue(field, value) {
+  if (value === null || value === undefined || value === "") return "(vuoto)";
+  if (typeof value === "boolean") return value ? "Si" : "No";
+  return String(value);
+}
+
+// Aggiorna la "ultima versione confermata dal server" per una prenotazione:
+// va chiamata ogni volta che riceviamo dati sicuramente aggiornati dal
+// cloud (caricamento del giorno, salvataggio riuscito, sincronizzazione).
+function recordSyncedSnapshot(row) {
+  if (!row || !row.id) return;
+  const clean = { ...row };
+  delete clean._status;
+  lastSyncedSnapshot[row.id] = clean;
+}
+
 function isOnline() {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
@@ -1260,8 +1349,19 @@ async function drainOutbox() {
       const executor = OUTBOX_EXECUTORS[op.type];
       if (!executor) { await idbDelete("outbox", op.qid); continue; }
       try {
+        if (op.type === "update_reservation") {
+          await checkAndRecordReservationConflict(op.payload);
+        }
         const result = await executor(op.payload);
         if (result && result.error) throw result.error;
+        if (op.type === "update_reservation") {
+          const prev = lastSyncedSnapshot[op.payload.id] || { id: op.payload.id };
+          recordSyncedSnapshot({ ...prev, ...op.payload.patch });
+        } else if (op.type === "insert_reservation") {
+          recordSyncedSnapshot(op.payload);
+        } else if (op.type === "delete_reservation") {
+          delete lastSyncedSnapshot[op.payload.id];
+        }
         await idbDelete("outbox", op.qid);
       } catch (e) {
         if (isNetworkError(e)) {
@@ -1318,6 +1418,8 @@ function scheduleCacheSnapshot() {
       await idbPut("cache", { key: "employees", value: employees });
       await idbPut("cache", { key: "saleGiornoByDate", value: saleGiornoByDate });
       await idbPut("cache", { key: "tavoliManualiByDate", value: tavoliManualiByDate });
+      await idbPut("cache", { key: "lastSyncedSnapshot", value: lastSyncedSnapshot });
+      await idbPut("cache", { key: "syncConflicts", value: syncConflicts });
     } catch (e) {
       console.error("Errore salvataggio cache offline:", e);
     }
@@ -1335,8 +1437,130 @@ async function hydrateFromCache() {
     if (map.employees) employees = map.employees;
     if (map.saleGiornoByDate) saleGiornoByDate = map.saleGiornoByDate;
     if (map.tavoliManualiByDate) tavoliManualiByDate = map.tavoliManualiByDate;
+    if (map.lastSyncedSnapshot) lastSyncedSnapshot = map.lastSyncedSnapshot;
+    if (map.syncConflicts) { syncConflicts = map.syncConflicts; renderConflictsBadge(); }
   } catch (e) {
     console.error("Errore lettura cache offline:", e);
+  }
+}
+
+/* ---------- Conflitti di sincronizzazione ----------
+   Se una prenotazione viene modificata offline su questo dispositivo E,
+   nel frattempo, anche da un altro dispositivo (online), la modifica di
+   qui viene comunque inviata come sempre appena torna la connessione (non
+   si blocca nulla) - ma il conflitto viene registrato qui, cosi' lo staff
+   puo' controllare con calma qual e' la versione giusta invece di scoprire
+   per caso che qualcosa e' cambiato senza saperlo. */
+
+function addSyncConflict(conflict) {
+  syncConflicts = syncConflicts.filter(c => c.id !== conflict.id);
+  syncConflicts.push(conflict);
+  idbPut("cache", { key: "syncConflicts", value: syncConflicts }).catch(() => {});
+  renderConflictsBadge();
+}
+
+function dismissSyncConflict(id) {
+  syncConflicts = syncConflicts.filter(c => c.id !== id);
+  idbPut("cache", { key: "syncConflicts", value: syncConflicts }).catch(() => {});
+  renderConflictsBadge();
+  renderConflictsModal();
+}
+
+function renderConflictsBadge() {
+  const badge = $("#conflicts-badge");
+  const btn = $("#conflicts-btn");
+  if (!badge || !btn) return;
+  if (syncConflicts.length > 0) {
+    badge.textContent = syncConflicts.length;
+    badge.classList.add("show");
+    btn.classList.add("show");
+  } else {
+    badge.classList.remove("show");
+    btn.classList.remove("show");
+  }
+}
+
+function renderConflictsModal() {
+  const list = $("#conflicts-list");
+  if (!list) return;
+  if (!syncConflicts.length) {
+    list.innerHTML = `<p class="notes-empty">Nessun conflitto da controllare.</p>`;
+    return;
+  }
+  list.innerHTML = syncConflicts.map(c => `
+    <div class="conflict-card" data-id="${c.id}">
+      <div class="conflict-card-title">${escapeHtml(c.nome || "Prenotazione")}</div>
+      <p class="conflict-card-sub">Questa prenotazione e' stata modificata anche da un altro dispositivo mentre eri offline. Controlla qual e' la versione giusta:</p>
+      <div class="conflict-fields">
+        ${c.fields.map(f => `
+          <div class="conflict-field-row">
+            <div class="conflict-field-label">${escapeHtml(f.label)}</div>
+            <div class="conflict-field-values">
+              <span class="conflict-value conflict-value-mine">Tua modifica: ${escapeHtml(f.mine)}</span>
+              <span class="conflict-value conflict-value-other">Altro dispositivo: ${escapeHtml(f.other)}</span>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      <div class="modal-actions" style="margin-top:10px;">
+        <div style="flex:1;"></div>
+        <button type="button" class="btn btn-secondary conflict-dismiss-btn" data-id="${c.id}">Ho controllato, ok</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// Confronta i campi che questo dispositivo sta per inviare con l'ultima
+// versione confermata dal server (lastSyncedSnapshot) e con quella
+// attualmente sul server (appena riletta): se un campo che stiamo per
+// sovrascrivere e' stato cambiato nel frattempo da qualcun altro a un
+// valore diverso da quello che stiamo per scrivere noi, e' un conflitto.
+function detectReservationConflictFields(patch, baseline, serverRow) {
+  if (!baseline) return [];
+  const fields = [];
+  for (const field of Object.keys(patch)) {
+    if (!(field in serverRow)) continue;
+    const baselineVal = baseline[field];
+    const serverVal = serverRow[field];
+    const mineVal = patch[field];
+    if (serverVal === baselineVal) continue; // nessuno l'ha toccato nel frattempo
+    if (serverVal === mineVal) continue; // coincidenza: stesso valore, nessun vero conflitto
+    fields.push({
+      field,
+      label: CONFLICT_FIELD_LABELS[field] || field,
+      mine: formatConflictValue(field, mineVal),
+      other: formatConflictValue(field, serverVal),
+    });
+  }
+  return fields;
+}
+
+// Chiamata da drainOutbox() appena prima di inviare una modifica offline a
+// una prenotazione: rilegge la riga attuale sul server e la confronta con
+// l'ultima versione conosciuta prima di andare offline. Se qualcuno ha
+// cambiato nel frattempo proprio i campi che stiamo per sovrascrivere,
+// registra un conflitto da far controllare allo staff. Non impedisce mai
+// l'invio della modifica: e' solo un avviso a posteriori.
+async function checkAndRecordReservationConflict(payload) {
+  const baseline = lastSyncedSnapshot[payload.id];
+  if (!baseline) return; // prima volta che vediamo questa prenotazione: nessun confronto possibile
+  try {
+    const { data: serverRow, error } = await supabaseClient.from(TABLE).select("*").eq("id", payload.id).single();
+    if (error || !serverRow) return; // riga forse cancellata nel frattempo: non c'e' nulla da confrontare
+    const fields = detectReservationConflictFields(payload.patch, baseline, serverRow);
+    if (fields.length) {
+      addSyncConflict({
+        id: payload.id,
+        nome: serverRow.nome || baseline.nome || "Prenotazione",
+        detectedAt: Date.now(),
+        fields,
+      });
+    }
+  } catch (e) {
+    // Un problema qui non deve mai bloccare il salvataggio vero e proprio:
+    // se il controllo fallisce, la modifica viene comunque inviata come
+    // sempre, semplicemente senza sapere se c'era un conflitto.
+    if (!isNetworkError(e)) console.error("Errore controllo conflitto:", e);
   }
 }
 
@@ -1416,8 +1640,28 @@ async function initCloud() {
   }
 }
 
+// Ripristina, a ogni avvio, la baseline dei conflitti e l'elenco dei
+// conflitti gia' rilevati in passato ma non ancora controllati dallo staff
+// - indipendentemente dal fatto che l'app riparta online o offline, cosi'
+// un conflitto rimane visibile finche' qualcuno non lo controlla e non
+// tocca "Ho controllato, ok", non solo finche' non si ricarica la pagina.
+async function restoreSyncState() {
+  if (!cloudMode) return;
+  try {
+    const rows = await idbGetAll("cache");
+    const map = {};
+    rows.forEach(r => { map[r.key] = r.value; });
+    if (map.lastSyncedSnapshot) lastSyncedSnapshot = map.lastSyncedSnapshot;
+    if (map.syncConflicts) { syncConflicts = map.syncConflicts; renderConflictsBadge(); }
+  } catch (e) {
+    // IndexedDB non disponibile: si riparte semplicemente senza cronologia
+    // di conflitti pregressi, nessun impatto sul funzionamento normale.
+  }
+}
+
 async function startApp() {
   setConnStatus();
+  await restoreSyncState();
   await loadForDate();
   await loadTables();
   await loadEmployees();
@@ -1818,6 +2062,7 @@ async function loadForDate() {
   }
   const others = reservations.filter(r => r.data !== key);
   reservations = others.concat(data.map(r => ({...r, _status:"ok"})));
+  data.forEach(recordSyncedSnapshot);
   await purgeExpiredCancellations();
   scheduleCacheSnapshot();
   render();
@@ -1985,6 +2230,18 @@ $("#notes-btn").addEventListener("click", () => {
 });
 $("#notes-close-btn").addEventListener("click", () => $("#notes-modal").classList.remove("show"));
 $("#notes-modal").addEventListener("click", (e) => { if (e.target.id === "notes-modal") $("#notes-modal").classList.remove("show"); });
+
+$("#conflicts-btn").addEventListener("click", () => {
+  renderConflictsModal();
+  $("#conflicts-modal").classList.add("show");
+});
+$("#conflicts-close-btn").addEventListener("click", () => $("#conflicts-modal").classList.remove("show"));
+$("#conflicts-modal").addEventListener("click", (e) => { if (e.target.id === "conflicts-modal") $("#conflicts-modal").classList.remove("show"); });
+$("#conflicts-list").addEventListener("click", (e) => {
+  const btn = e.target.closest(".conflict-dismiss-btn");
+  if (!btn) return;
+  dismissSyncConflict(btn.dataset.id);
+});
 $("#add-nota-btn").addEventListener("click", addNoteGiorno);
 $("#f-nuova-nota").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addNoteGiorno(); } });
 $("#notes-list").addEventListener("click", (e) => {
@@ -2495,6 +2752,7 @@ $("#pw-confirm-btn").addEventListener("click", async () => {
       () => supabaseClient.from(TABLE).delete().eq("id", id)
     );
     if (result.error) console.error(result.error);
+    else if (!result.queued) delete lastSyncedSnapshot[id];
   }
 });
 $("#pw-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#pw-confirm-btn").click(); });
@@ -2525,6 +2783,13 @@ async function persist(localId, payload, isUpdate) {
     if (r) {
       if (!isUpdate && result.data) Object.assign(r, result.data);
       r._status = "ok";
+    }
+    // Scritta confermata subito dal server (eravamo online): questa e' ora
+    // l'ultima versione conosciuta, utile per riconoscere futuri conflitti.
+    if (isUpdate) {
+      recordSyncedSnapshot({ ...(lastSyncedSnapshot[localId] || { id: localId }), ...payload });
+    } else if (result.data) {
+      recordSyncedSnapshot(result.data);
     }
   }
   render();
@@ -2959,6 +3224,18 @@ async function toggleTavoloManuale(turno, tavolo) {
   }
 }
 
+// Toglie il flag "occupato a mano" da un tavolo, solo se era impostato.
+// Usata da Disposizione quando un tavolo manualmente occupato viene
+// assegnato a una prenotazione vera: da quel momento e' la prenotazione a
+// comandare lo stato del tavolo, non serve piu' tenerlo anche manuale.
+async function clearTavoloManualeIfSet(turno, tavolo) {
+  const key = dateKey(currentDate);
+  const current = (tavoliManualiByDate[key] && tavoliManualiByDate[key][turno]) || [];
+  if (current.includes(tavolo)) {
+    await toggleTavoloManuale(turno, tavolo);
+  }
+}
+
 function tavoloStatusInfo(turno, nomeTavolo) {
   const key = dateKey(currentDate);
   const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
@@ -3076,8 +3353,17 @@ function renderDisposizione() {
     $("#disp-tables-label").textContent = "Tavoli";
     $("#disp-tables").innerHTML = `<div class="disp-empty-tables">Nessuna sala attiva per oggi: accendi Sopra/Cantina/Fuori qui sopra, oppure configura tavoli in Saletta/Osteria/Negozio/Plastic.</div>`;
   } else {
+    const key = dateKey(currentDate);
     const vNames = new Set(vTables.map(t => t.nome));
-    const liberi = vTables.length - assignedTableCount(items, vNames);
+    // Un tavolo puo' essere "occupato" anche senza nessuna prenotazione vera
+    // dietro: e' il caso del tag manuale rosso nella riga "Tavoli" (es. un
+    // cliente di passaggio). Va contato come non libero anche qui, altrimenti
+    // Disposizione lo mostrerebbe ancora disponibile per essere assegnato -
+    // questo era il bug segnalato.
+    const manualiSet = new Set(((tavoliManualiByDate[key] && tavoliManualiByDate[key][dispTurno]) || []).filter(t => vNames.has(t)));
+    const occupiedSet = new Set(manualiSet);
+    items.forEach(r => parseTavoli(r.tavolo).forEach(t => { if (vNames.has(t)) occupiedSet.add(t); }));
+    const liberi = vTables.length - occupiedSet.size;
     $("#disp-tables-label").textContent = `Tavoli — ${liberi} ${liberi === 1 ? "libero" : "liberi"} su ${vTables.length}`;
     $("#disp-tables").innerHTML = vTables.map(t => {
       const nome = t.nome;
@@ -3094,6 +3380,9 @@ function renderDisposizione() {
       } else if (owners.length) {
         cls = owners.length > 1 ? "assigned-other shared" : "assigned-other";
         sub = owners.map(o => escapeHtml(o.nome)).join(" + ");
+      } else if (manualiSet.has(nome)) {
+        cls = "assigned-other";
+        sub = "Occupato (manuale)";
       }
       return `<button type="button" class="disp-table-chip ${cls}" data-table="${escapeHtml(nome)}">${escapeHtml(nome)}${sub ? `<span class="dtc-assigned-to">${sub}</span>` : ""}</button>`;
     }).join("");
@@ -3159,6 +3448,13 @@ async function toggleTableAssignment(table) {
   if (owner && !canShare) {
     await setTavoloForReservation(owner.id, joinTavoli(parseTavoli(owner.tavolo).filter(t => t !== table)));
   }
+  // Il tavolo potrebbe essere segnato "occupato" a mano dalla riga Tavoli
+  // (es. cliente di passaggio, senza una prenotazione vera). Assegnandolo
+  // ora a una prenotazione vera, quel flag manuale non serve piu' - da qui
+  // in poi e' la prenotazione a determinare lo stato del tavolo. Se non lo
+  // togliessimo, il tavolo resterebbe segnato come occupato anche dopo aver
+  // eventualmente tolto la prenotazione da qui.
+  await clearTavoloManualeIfSet(dispTurno, table);
   await setTavoloForReservation(dispActiveId, joinTavoli([...activeTables, table]));
 }
 
@@ -3187,6 +3483,21 @@ $("#disp-tables").addEventListener("click", (e) => {
 // progetto Supabase, resta sulla schermata di login finche' non si accede:
 // vedi initCloud() piu' sopra.
 initCloud();
+
+/* ---------- PWA: registrazione service worker ----------
+   Fa si' che, una volta aperta almeno una volta online, la pagina si apra
+   comunque anche a zero connessione (es. tablet riavviato senza wifi). Non
+   ha nulla a che fare con i dati delle prenotazioni (quelli li gestisce
+   gia' il motore offline sopra): serve solo a far caricare l'app stessa.
+   Se il file sw.js non e' presente sul sito (o l'app gira dentro il
+   contenitore nativo Android via Capacitor, dove non serve), il tentativo
+   di registrazione fallisce in silenzio e l'app funziona comunque come
+   prima. */
+if ("serviceWorker" in navigator && !window.Capacitor) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
