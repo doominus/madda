@@ -410,6 +410,10 @@
   .phone-status{font-size:11.5px;color:var(--ok);margin-top:7px;min-height:14px;}
   .phone-status.phone-status-error{color:var(--warn);}
 
+  /* Nascosto di default: compare solo su schermi da telefono per una NUOVA
+     prenotazione, vedi la classe "show-on-phone" e il media query sopra. */
+  .tavolo-field{display:none;}
+
   .abituale-toggle{display:inline-flex;align-items:center;gap:6px;width:auto;}
   .toggle-row{display:flex;gap:10px;flex-wrap:wrap;}
 
@@ -541,13 +545,17 @@
   .note-delete{border:none;background:none;color:var(--muted);cursor:pointer;font-size:19px;line-height:1;padding:2px 4px;flex-shrink:0;}
   .note-delete:active{color:var(--warn);}
 
-  /* ---------- Vista mobile scarna (schermi stretti) ----------
-     Pensata per l'uso occasionale fuori dal ristorante (es. aggiungere
-     al volo una prenotazione ricevuta per telefono): nasconde gli
-     strumenti pensati per l'uso al tavolo/in sala (calendario, PDF,
+  /* ---------- Vista mobile scarna (schermi da telefono) ----------
+     Pensata per l'uso occasionale fuori dal ristorante, da telefono (es.
+     aggiungere al volo una prenotazione ricevuta per telefono): nasconde
+     gli strumenti pensati per l'uso al tavolo/in sala (calendario, PDF,
      ordinamento, disposizione tavoli, striscia settimanale) e passa da
-     scorrimento interno a scorrimento naturale della pagina intera. */
-  @media (max-width: 720px) {
+     scorrimento interno a scorrimento naturale della pagina intera.
+     La soglia (600px) resta sotto la larghezza di qualunque iPad anche in
+     verticale, cosi' su tablet questi strumenti restano sempre visibili
+     indipendentemente dall'orientamento: solo un telefono vero attiva
+     questa vista semplificata. */
+  @media (max-width: 600px) {
     html, body { height: auto; }
     #app { height: auto; min-height: 100vh; }
     header{padding:14px 16px;gap:8px;}
@@ -566,6 +574,7 @@
     .modal{padding:26px 20px;width:94vw;}
     .row2{flex-direction:column;gap:0;}
     #help-modal .modal,#disposizione-modal .modal{width:94vw;}
+    .tavolo-field.show-on-phone{display:block;}
   }
 
   /* ---------- Schermata di accesso (login) ---------- */
@@ -739,6 +748,16 @@
         <button type="button" class="chip-option" data-pos="dentro">&#127968; Dentro</button>
         <button type="button" class="chip-option" data-pos="fuori">&#9728;&#65039; Fuori</button>
       </div>
+    </div>
+    <!-- Scelta del tavolo: visibile solo per una prenotazione NUOVA (mai in
+         modifica, per non rischiare di spostare per sbaglio un tavolo gia'
+         assegnato) e solo da telefono (schermi stretti) - su tablet/desktop
+         l'assegnazione resta un compito di "Disposizione" come sempre,
+         perche' li' si vede il quadro completo di tutte le prenotazioni. -->
+    <div class="field tavolo-field" id="tavolo-field">
+      <label>Tavolo (facoltativo)</label>
+      <input type="hidden" id="f-tavolo">
+      <div class="chip-select" id="tavolo-chip-select"></div>
     </div>
     <div class="field">
       <label>Telefono</label>
@@ -2578,6 +2597,11 @@ function openNewModal(turno) {
   fillEmployeeSelect(lastEmployee);
   $("#delete-btn").style.display = "none";
   $("#cancel-res-btn").style.display = "none";
+  // Il campo tavolo compare solo qui (nuova prenotazione), mai in modifica
+  // - vedi renderTavoloPickerChips: su schermi non da telefono resta
+  // comunque nascosto dal CSS anche con questa classe presente.
+  $("#tavolo-field").classList.add("show-on-phone");
+  renderTavoloPickerChips(turno);
   resModal.classList.add("show");
   setTimeout(() => $("#f-nome").focus(), 50);
 }
@@ -2598,6 +2622,11 @@ function openEditModal(r) {
   setAbitualeToggle(r.abituale);
   setPrimoTurnoToggle(r.primo_turno);
   fillEmployeeSelect(r.utente || "");
+  // In modifica il campo tavolo resta sempre nascosto: l'assegnazione di
+  // una prenotazione gia' esistente si fa solo da Disposizione, per non
+  // rischiare di spostare per sbaglio un tavolo gia' assegnato.
+  $("#tavolo-field").classList.remove("show-on-phone");
+  setTavoloPickerChip("");
   $("#delete-btn").style.display = "inline-block";
   const cancelBtn = $("#cancel-res-btn");
   cancelBtn.style.display = "inline-block";
@@ -2668,9 +2697,12 @@ $("#save-btn").addEventListener("click", async () => {
   }
   const utente = $("#f-utente").value;
   const note = $("#f-note").value.trim();
-  // Il campo "tavolo" non si tocca da qui: l'assegnazione dei tavoli avviene
-  // solo dalla funzione "Crea disposizione", per non sovrascrivere per
-  // sbaglio un tavolo gia' assegnato quando si modifica una prenotazione.
+  // Il campo "tavolo" non si tocca da qui in fase di MODIFICA: l'assegnazione
+  // dei tavoli su una prenotazione gia' esistente avviene solo da
+  // "Disposizione", per non sovrascrivere per sbaglio un tavolo gia'
+  // assegnato. Per una prenotazione NUOVA creata da telefono, invece, il
+  // tavolo scelto qui (facoltativo) viene incluso subito: vedi il campo
+  // "Tavolo" nel modal, visibile solo su schermi stretti.
   const payload = {
     data: dateKey(currentDate),
     turno: $("#f-turno").value,
@@ -2683,6 +2715,11 @@ $("#save-btn").addEventListener("click", async () => {
     abituale: $("#f-abituale-toggle").classList.contains("selected"),
     primo_turno: $("#f-primo-turno-toggle").classList.contains("selected"),
   };
+  const turnoScelto = payload.turno;
+  const tavoloScelto = $("#f-tavolo").value;
+  const tavoloFieldVisibile = getComputedStyle($("#tavolo-field")).display !== "none";
+  const assegnaTavoloAllaCreazione = !id && tavoloFieldVisibile && tavoloScelto;
+  if (assegnaTavoloAllaCreazione) payload.tavolo = tavoloScelto;
   if (utente) lastEmployee = utente;
   closeModal();
 
@@ -2695,6 +2732,7 @@ $("#save-btn").addEventListener("click", async () => {
     const tempId = cryptoId();
     reservations.push({ id: tempId, ...payload, _status:"pending" });
     render();
+    if (assegnaTavoloAllaCreazione) await clearTavoloManualeIfSet(turnoScelto, tavoloScelto);
     await persist(tempId, payload, false);
   }
 });
@@ -2996,6 +3034,48 @@ $("#posizione-chip-select").addEventListener("click", (e) => {
   const val = chip.dataset.pos;
   const next = ($("#f-posizione").value === val) ? "" : val;
   setPosizioneChip(next);
+});
+
+/* ---------- Scelta tavolo alla creazione (solo da telefono) ----------
+   Elenca i tavoli del turno che, in questo momento, non risultano occupati
+   ne' da una prenotazione vera ne' dal tag manuale della riga Tavoli -
+   stessa logica gia' usata in Disposizione per decidere cosa e' "libero". */
+function tavoliLiberiOra(turno) {
+  const key = dateKey(currentDate);
+  const vTables = visibleTables(turno);
+  const items = reservations.filter(r => r.data === key && r.turno === turno && !r.cancellato);
+  const occupati = new Set((tavoliManualiByDate[key] && tavoliManualiByDate[key][turno]) || []);
+  items.forEach(r => parseTavoli(r.tavolo).forEach(t => occupati.add(t)));
+  return vTables.filter(t => !occupati.has(t.nome));
+}
+
+// A scelta singola come Dentro/Fuori: si puo' anche non scegliere nulla e
+// assegnare il tavolo piu' tardi da Disposizione, come sempre.
+function setTavoloPickerChip(value) {
+  $("#f-tavolo").value = value || "";
+  $("#tavolo-chip-select").querySelectorAll(".chip-option").forEach(b => {
+    b.classList.toggle("selected", b.dataset.tavolo === value);
+  });
+}
+
+function renderTavoloPickerChips(turno) {
+  const liberi = tavoliLiberiOra(turno);
+  $("#f-tavolo").value = "";
+  if (!liberi.length) {
+    $("#tavolo-chip-select").innerHTML = `<p class="chip-select-empty">Nessun tavolo libero al momento: potrai assegnarlo appena si libera.</p>`;
+    return;
+  }
+  $("#tavolo-chip-select").innerHTML = liberi.map(t =>
+    `<button type="button" class="chip-option" data-tavolo="${escapeHtml(t.nome)}">${escapeHtml(t.nome)}</button>`
+  ).join("");
+}
+
+$("#tavolo-chip-select").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip-option");
+  if (!chip) return;
+  const val = chip.dataset.tavolo;
+  const next = ($("#f-tavolo").value === val) ? "" : val;
+  setTavoloPickerChip(next);
 });
 
 /* ---------- Utenti (tag) ---------- */
