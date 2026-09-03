@@ -37,6 +37,8 @@
     --ok:#7a8a63;
     --warn:#b25f4a;
     --pending:#a37a4a;
+    --gruppo:#8a5a9c;
+    --gruppo-light:#f3ecf6;
     --radius:2px;
     --font-display:"Cormorant Garamond","Iowan Old Style","Palatino Linotype",Georgia,serif;
     --shadow-sm:none;
@@ -260,6 +262,30 @@
   .res-card.arrived:active{background:#e9eee1;}
   .res-card.selected{background:#fbf3de;box-shadow:inset 3px 0 0 0 #c9a227;}
   .res-card.selected:active{background:#f7ecc9;}
+  /* Prenotazioni "Gruppo": evidenziazione lilla dedicata, sempre in cima
+     all'elenco del turno (vedi il comparatore in render()). Se una
+     prenotazione gruppo e' anche selezionata, l'evidenziazione oro della
+     selezione prende il sopravvento (regola piu' specifica sotto). */
+  .res-card.gruppo{background:var(--gruppo-light);}
+  .res-card.gruppo:active{background:#e8d9ee;}
+  .res-card.gruppo.selected{background:#fbf3de;box-shadow:inset 3px 0 0 0 #c9a227;}
+  .badge-gruppo{
+    display:inline-block;background:var(--gruppo);color:#fff;font-size:9.5px;font-weight:700;
+    padding:3px 7px;border:1px solid var(--gruppo);border-radius:1px;text-decoration:none;flex-shrink:0;
+    vertical-align:middle;text-transform:uppercase;letter-spacing:.08em;
+  }
+  .badge-gruppo-stato{
+    display:inline-block;background:transparent;font-size:9.5px;font-weight:700;
+    padding:3px 7px;border-radius:1px;text-decoration:none;flex-shrink:0;
+    vertical-align:middle;text-transform:uppercase;letter-spacing:.08em;
+  }
+  .badge-gruppo-stato.confermato{color:var(--ok);border:1px solid var(--ok);}
+  .badge-gruppo-stato.da-confermare{color:var(--warn);border:1px solid var(--warn);}
+  .menu-pdf-link{
+    display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--gruppo);
+    font-size:16px;text-decoration:none;padding:2px;line-height:1;
+  }
+  .menu-pdf-link:active{opacity:.6;}
   .badge-cancelled{
     display:inline-block;background:transparent;color:var(--muted);font-size:9.5px;font-weight:700;
     padding:3px 7px;border:1px solid var(--border);border-radius:1px;text-decoration:none;flex-shrink:0;
@@ -767,8 +793,24 @@
     <div class="field toggle-row">
       <button type="button" class="chip-option abituale-toggle" id="f-abituale-toggle">&#11088; Cliente abituale</button>
       <button type="button" class="chip-option abituale-toggle" id="f-primo-turno-toggle">&#128260; Primo turno</button>
+      <button type="button" class="chip-option abituale-toggle" id="f-gruppo-toggle">&#128101; Gruppo</button>
     </div>
     <p style="font-size:11.5px;color:var(--muted);margin:-12px 0 18px;line-height:1.4;">"Primo turno" = il tavolo si libera in tempo per un altro cliente: in "Disposizione" gli si potra' assegnare un tavolo gia' occupato da un altro (es. chi arriva piu' tardi).</p>
+    <!-- Campi aggiuntivi per una prenotazione "Gruppo": stato della conferma
+         e menu concordato in PDF. Visibili solo quando il toggle "Gruppo" e'
+         attivo; il resto del modulo (note, operatore, orario...) resta
+         invariato indipendentemente da questa scelta. -->
+    <div class="field" id="gruppo-fields" style="display:none;">
+      <label>Stato gruppo</label>
+      <input type="hidden" id="f-gruppo-stato" value="da_confermare">
+      <div class="chip-select" id="gruppo-stato-chip-select">
+        <button type="button" class="chip-option" data-stato="da_confermare">Da confermare</button>
+        <button type="button" class="chip-option" data-stato="confermato">Confermato</button>
+      </div>
+      <label style="margin-top:16px;display:block;">Menu concordato (PDF)</label>
+      <input type="file" id="f-gruppo-pdf" accept="application/pdf">
+      <div id="gruppo-pdf-current" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
+    </div>
     <div class="field">
       <label>Inserito da</label>
       <input type="hidden" id="f-utente">
@@ -1306,6 +1348,7 @@ const OUTBOX_EXECUTORS = {
   upsert_sala_giorno: (payload) => supabaseClient.from(SALA_TABLE).upsert(payload, { onConflict: "data,turno" }),
   upsert_tavoli_manuali: (payload) => supabaseClient.from(TAVOLI_MANUALI_TABLE).upsert(payload, { onConflict: "data,turno" }),
   upsert_settings: (payload) => supabaseClient.from(SETTINGS_TABLE).upsert(payload, { onConflict: "chiave" }),
+  upload_menu_pdf: (payload) => supabaseClient.storage.from("menu-gruppi").upload(payload.path, payload.file, { upsert: true, contentType: "application/pdf" }),
 };
 
 async function enqueueOp(entry) {
@@ -1380,11 +1423,32 @@ async function drainOutbox() {
           recordSyncedSnapshot(op.payload);
         } else if (op.type === "delete_reservation") {
           delete lastSyncedSnapshot[op.payload.id];
+        } else if (op.type === "upload_menu_pdf") {
+          // Il PDF caricato mentre eravamo offline e' ora davvero sul
+          // server: il link sulla card puo' comparire (vedi render()).
+          const resId = (op.payload.path || "").split("/")[0];
+          const r = reservations.find(x => x.id === resId);
+          if (r) { r._pdfPending = false; render(); }
         }
         await idbDelete("outbox", op.qid);
       } catch (e) {
         if (isNetworkError(e)) {
           break; // torneremo offline a meta': riprova al prossimo giro
+        }
+        if (op.type === "upload_menu_pdf") {
+          // L'upload in coda non e' andato a buon fine per un motivo non di
+          // rete (es. permessi sul bucket): non lasciare un link rotto sulla
+          // prenotazione, e segnala il problema in modo che si possa
+          // ricaricare il file dalla modifica.
+          const resId = (op.payload.path || "").split("/")[0];
+          const r = reservations.find(x => x.id === resId);
+          if (r) {
+            r.menu_pdf_path = null;
+            r.menu_pdf_nome = null;
+            r._pdfPending = false;
+            render();
+            await persist(resId, { menu_pdf_path: null, menu_pdf_nome: null }, true);
+          }
         }
         console.error("Modifica in coda scartata (errore non di rete, non risolvibile ritentando):", op, e);
         await idbDelete("outbox", op.qid);
@@ -1948,6 +2012,10 @@ function render() {
     const items = reservations
       .filter(r => r.data === key && r.turno === turno)
       .sort((a,b) => {
+        // Le prenotazioni "Gruppo" restano sempre in cima all'elenco del
+        // turno, indipendentemente dall'ordinamento scelto (orario o
+        // inserimento) per il resto delle prenotazioni.
+        if (!!a.gruppo !== !!b.gruppo) return a.gruppo ? -1 : 1;
         if (sortMode === "inserimento") {
           const ca = a.created_at || "9999-12-31T23:59:59.999Z";
           const cb = b.created_at || "9999-12-31T23:59:59.999Z";
@@ -1978,7 +2046,7 @@ function render() {
       return;
     }
     listEl[turno].innerHTML = items.map(r => `
-      <div class="res-card ${r.cancellato ? "cancelled" : ""} ${r.arrivato ? "arrived" : ""} ${r.id === selectedResId ? "selected" : ""}" data-id="${r.id}">
+      <div class="res-card ${r.cancellato ? "cancelled" : ""} ${r.arrivato ? "arrived" : ""} ${r.gruppo ? "gruppo" : ""} ${r.id === selectedResId ? "selected" : ""}" data-id="${r.id}">
         <div class="res-time">${r.orario.slice(0,5)}</div>
         <div class="res-info">
           <div class="res-row">
@@ -1987,12 +2055,15 @@ function render() {
             ${r.cancellato ? `<span class="badge-cancelled">Disdetta</span>` : ""}
             ${(!r.cancellato && r.arrivato) ? `<span class="badge-arrived">In sala</span>` : ""}
             ${(!r.cancellato && r.abituale) ? `<span class="badge-abituale">&#11088; Abituale</span>` : ""}
+            ${(!r.cancellato && r.gruppo) ? `<span class="badge-gruppo">&#128101; Gruppo</span>` : ""}
+            ${(!r.cancellato && r.gruppo) ? `<span class="badge-gruppo-stato ${r.gruppo_stato === "confermato" ? "confermato" : "da-confermare"}">${r.gruppo_stato === "confermato" ? "Confermato" : "Da confermare"}</span>` : ""}
             ${r.tavolo ? `<span class="res-tavolo-badge">${escapeHtml(r.tavolo)}</span>` : ""}
             <span class="res-meta-item">&#128101; ${r.ospiti} ${r.ospiti == 1 ? "ospite" : "ospiti"}</span>
             <div class="res-row-right">
               ${r.posizione === "dentro" ? `<span title="Dentro">&#127968;</span>` : ""}
               ${r.posizione === "fuori" ? `<span title="Fuori">&#9728;&#65039;</span>` : ""}
               ${r.primo_turno ? `<span class="res-meta-item" title="Primo turno">&#128260; Primo turno</span>` : ""}
+              ${(r.gruppo && r.menu_pdf_path && !r._pdfPending) ? `<a class="menu-pdf-link" href="${menuPdfUrl(r.menu_pdf_path)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Apri il menu concordato (PDF)">&#128196;</a>` : ""}
               ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Invia conferma WhatsApp">&#128172;</a>` : ""}
             </div>
           </div>
@@ -2548,6 +2619,92 @@ function setPrimoTurnoToggle(value) {
   $("#f-primo-turno-toggle").classList.toggle("selected", !!value);
 }
 
+/* ---------- "Gruppo": prenotazione di un gruppo con menu concordato,
+   stato di conferma dedicato e sempre in cima all'elenco del giorno
+   (vedi il comparatore in render()) ---------- */
+let pendingGruppoPdfFile = null;
+
+$("#f-gruppo-toggle").addEventListener("click", () => {
+  $("#f-gruppo-toggle").classList.toggle("selected");
+  updateGruppoFieldsVisibility();
+});
+
+function updateGruppoFieldsVisibility() {
+  $("#gruppo-fields").style.display = $("#f-gruppo-toggle").classList.contains("selected") ? "block" : "none";
+}
+
+function setGruppoToggle(value) {
+  $("#f-gruppo-toggle").classList.toggle("selected", !!value);
+  updateGruppoFieldsVisibility();
+}
+
+function setGruppoStatoChip(value) {
+  const v = value || "da_confermare";
+  $("#f-gruppo-stato").value = v;
+  $("#gruppo-stato-chip-select").querySelectorAll(".chip-option").forEach(b => {
+    b.classList.toggle("selected", b.dataset.stato === v);
+  });
+}
+
+$("#gruppo-stato-chip-select").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip-option");
+  if (!chip) return;
+  setGruppoStatoChip(chip.dataset.stato);
+});
+
+$("#f-gruppo-pdf").addEventListener("change", (e) => {
+  pendingGruppoPdfFile = e.target.files[0] || null;
+});
+
+// URL pubblico del PDF nel bucket Storage "menu-gruppi" (bucket pubblico:
+// nessuna autenticazione richiesta per scaricare, solo per caricare).
+function menuPdfUrl(path) {
+  if (!path || !SUPABASE_URL) return "";
+  return `${SUPABASE_URL}/storage/v1/object/public/menu-gruppi/${path}`;
+}
+
+// Caricamento del PDF del menu: passa dallo stesso meccanismo offline-safe
+// (dbWrite/coda) di tutte le altre scritture, cosi' se non c'e' connessione
+// il file resta in coda (in IndexedDB) e riparte da solo al ritorno online.
+// Il link al PDF sulla card (vedi render(), "_pdfPending") resta nascosto
+// finche' l'upload non e' davvero confermato: il riferimento al file viene
+// salvato subito sulla prenotazione (serve per generare il percorso), ma se
+// il caricamento vero e proprio fallisce (es. rete, permessi sul bucket) non
+// deve restare un link rotto che punta a un file mai arrivato sul server.
+async function uploadMenuPdf(reservationId, file) {
+  if (!file) return;
+  if (!cloudMode) {
+    // Modalita' demo: nessun caricamento reale, ma il link deve comunque
+    // comparire subito per poter provare il flusso senza un progetto cloud.
+    const rDemo = reservations.find(x => x.id === reservationId);
+    if (rDemo) { rDemo._pdfPending = false; render(); }
+    return;
+  }
+  const path = `${reservationId}/menu.pdf`;
+  const entry = { type: "upload_menu_pdf", payload: { path, file } };
+  const exec = () => supabaseClient.storage.from("menu-gruppi").upload(path, file, { upsert: true, contentType: "application/pdf" });
+  const result = await dbWrite(entry, exec);
+  const r = reservations.find(x => x.id === reservationId);
+  if (result.queued) {
+    // Offline: l'upload e' in coda e ripartira' da solo (vedi drainOutbox,
+    // caso "upload_menu_pdf") - il link resta nascosto fino ad allora.
+    return;
+  }
+  if (result.error) {
+    console.error("Caricamento del PDF del menu non riuscito:", result.error);
+    if (r) {
+      r.menu_pdf_path = null;
+      r.menu_pdf_nome = null;
+      r._pdfPending = false;
+      render();
+      await persist(reservationId, { menu_pdf_path: null, menu_pdf_nome: null }, true);
+    }
+    alert("Il PDF del menu non e' stato caricato correttamente (problema di connessione o di permessi sul bucket 'menu-gruppi'). Riapri la prenotazione in modifica e prova a ricaricare il file.");
+    return;
+  }
+  if (r) { r._pdfPending = false; render(); scheduleCacheSnapshot(); }
+}
+
 let phoneStatusTimer = null;
 $("#f-telefono").addEventListener("input", () => {
   clearTimeout(phoneStatusTimer);
@@ -2602,6 +2759,11 @@ function openNewModal(turno) {
   // comunque nascosto dal CSS anche con questa classe presente.
   $("#tavolo-field").classList.add("show-on-phone");
   renderTavoloPickerChips(turno);
+  setGruppoToggle(false);
+  setGruppoStatoChip("da_confermare");
+  pendingGruppoPdfFile = null;
+  $("#f-gruppo-pdf").value = "";
+  $("#gruppo-pdf-current").textContent = "";
   resModal.classList.add("show");
   setTimeout(() => $("#f-nome").focus(), 50);
 }
@@ -2627,6 +2789,13 @@ function openEditModal(r) {
   // rischiare di spostare per sbaglio un tavolo gia' assegnato.
   $("#tavolo-field").classList.remove("show-on-phone");
   setTavoloPickerChip("");
+  setGruppoToggle(r.gruppo);
+  setGruppoStatoChip(r.gruppo_stato);
+  pendingGruppoPdfFile = null;
+  $("#f-gruppo-pdf").value = "";
+  $("#gruppo-pdf-current").textContent = r.menu_pdf_nome
+    ? `Menu attuale: ${r.menu_pdf_nome} (scegli un nuovo file per sostituirlo)`
+    : "";
   $("#delete-btn").style.display = "inline-block";
   const cancelBtn = $("#cancel-res-btn");
   cancelBtn.style.display = "inline-block";
@@ -2697,6 +2866,14 @@ $("#save-btn").addEventListener("click", async () => {
   }
   const utente = $("#f-utente").value;
   const note = $("#f-note").value.trim();
+  // Id definitivo della prenotazione: per una modifica e' gia' noto, per una
+  // nuova lo generiamo subito (invece che piu' sotto) cosi' da poterlo usare
+  // anche come percorso del PDF del menu nel bucket Storage - in modo
+  // deterministico e coerente anche se il salvataggio avviene offline.
+  const localId = id || cryptoId();
+  const gruppo = $("#f-gruppo-toggle").classList.contains("selected");
+  const esistente = id ? reservations.find(r => r.id === id) : null;
+  const pdfFile = pendingGruppoPdfFile;
   // Il campo "tavolo" non si tocca da qui in fase di MODIFICA: l'assegnazione
   // dei tavoli su una prenotazione gia' esistente avviene solo da
   // "Disposizione", per non sovrascrivere per sbaglio un tavolo gia'
@@ -2714,6 +2891,14 @@ $("#save-btn").addEventListener("click", async () => {
     utente,
     abituale: $("#f-abituale-toggle").classList.contains("selected"),
     primo_turno: $("#f-primo-turno-toggle").classList.contains("selected"),
+    // "Gruppo": stato Confermato/Da confermare e riferimento al PDF del menu
+    // concordato. Se e' stato scelto un nuovo file lo si punta subito (il
+    // percorso e' deterministico: <id prenotazione>/menu.pdf), altrimenti in
+    // modifica si conserva quello gia' presente.
+    gruppo,
+    gruppo_stato: gruppo ? ($("#f-gruppo-stato").value || "da_confermare") : null,
+    menu_pdf_path: gruppo ? (pdfFile ? `${localId}/menu.pdf` : (esistente ? esistente.menu_pdf_path || null : null)) : null,
+    menu_pdf_nome: gruppo ? (pdfFile ? pdfFile.name : (esistente ? esistente.menu_pdf_nome || null : null)) : null,
   };
   const turnoScelto = payload.turno;
   const tavoloScelto = $("#f-tavolo").value;
@@ -2721,19 +2906,27 @@ $("#save-btn").addEventListener("click", async () => {
   const assegnaTavoloAllaCreazione = !id && tavoloFieldVisibile && tavoloScelto;
   if (assegnaTavoloAllaCreazione) payload.tavolo = tavoloScelto;
   if (utente) lastEmployee = utente;
+  pendingGruppoPdfFile = null;
   closeModal();
 
+  // Se sto caricando un PDF nuovo proprio ora, il link non deve comparire
+  // sulla card finche' l'upload non e' davvero confermato (vedi render() e
+  // uploadMenuPdf) - altrimenti punterebbe per qualche istante (o per
+  // sempre, se l'upload fallisce) a un file non ancora presente sul server.
+  const pdfInAttesa = !!(gruppo && pdfFile);
   if (id) {
     const idx = reservations.findIndex(r => r.id === id);
-    if (idx >= 0) reservations[idx] = { ...reservations[idx], ...payload, _status:"pending" };
+    if (idx >= 0) reservations[idx] = { ...reservations[idx], ...payload, _status:"pending", _pdfPending: pdfInAttesa };
     render();
     await persist(id, payload, true);
   } else {
-    const tempId = cryptoId();
-    reservations.push({ id: tempId, ...payload, _status:"pending" });
+    reservations.push({ id: localId, ...payload, _status:"pending", _pdfPending: pdfInAttesa });
     render();
     if (assegnaTavoloAllaCreazione) await clearTavoloManualeIfSet(turnoScelto, tavoloScelto);
-    await persist(tempId, payload, false);
+    await persist(localId, payload, false);
+  }
+  if (pdfInAttesa) {
+    await uploadMenuPdf(localId, pdfFile);
   }
 });
 
