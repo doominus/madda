@@ -39,6 +39,7 @@
     --pending:#a37a4a;
     --gruppo:#8a5a9c;
     --gruppo-light:#f3ecf6;
+    --closed:#c0392b;
     --radius:2px;
     --font-display:"Cormorant Garamond","Iowan Old Style","Palatino Linotype",Georgia,serif;
     --shadow-sm:none;
@@ -225,6 +226,21 @@
     font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
+  /* ---------- Lucchetto apertura/chiusura del servizio ---------- */
+  .lock-btn{
+    align-self:center;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);
+    background:transparent;font-size:12.5px;cursor:pointer;color:var(--muted);flex-shrink:0;
+    display:inline-flex;align-items:center;justify-content:center;line-height:1;
+    transition:all .15s ease;
+  }
+  .lock-btn:active{border-color:var(--text);color:var(--text);}
+  .lock-btn.locked{background:#f6e1dd;border-color:var(--closed);color:var(--closed);}
+  .chiuso-banner{
+    text-align:center;color:var(--closed);font-family:var(--font-display);font-weight:700;
+    font-size:40px;letter-spacing:.05em;margin-top:80px;text-transform:uppercase;
+  }
+  /* Servizio chiuso: niente "Sale extra"/"Tavoli"/riepilogo orari da mostrare. */
+  .panel.chiuso .panel-sala-row,.panel.chiuso .orario-breakdown{display:none;}
 
   .add-btn{
     width:34px;height:34px;border-radius:50%;border:1px solid var(--text);font-size:17px;cursor:pointer;
@@ -283,9 +299,23 @@
   .badge-gruppo-stato.da-confermare{color:var(--warn);border:1px solid var(--warn);}
   .menu-pdf-link{
     display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--gruppo);
-    font-size:16px;text-decoration:none;padding:2px;line-height:1;
+    font-size:16px;text-decoration:none;padding:2px;line-height:1;border:none;cursor:pointer;font-family:inherit;
   }
   .menu-pdf-link:active{opacity:.6;}
+
+  /* ---------- Anteprima PDF (menu Gruppo) ---------- */
+  .pdf-preview-box{
+    width:820px;max-width:96vw;height:90vh;display:flex;flex-direction:column;padding:22px 24px;
+  }
+  .pdf-preview-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;}
+  .pdf-preview-header h2{margin:0;font-size:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pdf-preview-close{
+    background:transparent;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--muted);
+    padding:2px 8px;flex-shrink:0;
+  }
+  .pdf-preview-close:active{color:var(--text);}
+  .pdf-preview-frame{flex:1;width:100%;border:1px solid var(--border);border-radius:2px;background:#fff;}
+  .pdf-preview-actions{margin-top:14px;display:flex;justify-content:flex-end;}
   .badge-cancelled{
     display:inline-block;background:transparent;color:var(--muted);font-size:9.5px;font-weight:700;
     padding:3px 7px;border:1px solid var(--border);border-radius:1px;text-decoration:none;flex-shrink:0;
@@ -702,6 +732,7 @@
       <div class="panel-header">
         <div class="panel-title">
           <span class="panel-icon">&#9728;&#65039;</span> Pranzo <span class="panel-count" id="count-pranzo"></span>
+          <button type="button" class="lock-btn" id="lock-btn-pranzo" data-turno="pranzo" title="Servizio aperto: tocca per chiuderlo (richiede password)">&#128275;</button>
         </div>
         <div style="display:flex;align-items:center;">
           <button class="toolbar-btn disp-btn" data-turno="pranzo">Disposizione</button>
@@ -725,6 +756,7 @@
       <div class="panel-header">
         <div class="panel-title">
           <span class="panel-icon">&#127769;</span> Cena <span class="panel-count" id="count-cena"></span>
+          <button type="button" class="lock-btn" id="lock-btn-cena" data-turno="cena" title="Servizio aperto: tocca per chiuderlo (richiede password)">&#128275;</button>
         </div>
         <div style="display:flex;align-items:center;">
           <button class="toolbar-btn disp-btn" data-turno="cena">Disposizione</button>
@@ -831,6 +863,22 @@
 </div>
 
 <!-- Modal conferma password per eliminazione definitiva -->
+<!-- Anteprima del menu PDF di una prenotazione Gruppo: si apre in una
+     finestrella sopra la pagina invece di scaricare subito il file, cosi'
+     si puo' dare un'occhiata veloce senza uscire dall'agenda. -->
+<div class="overlay" id="pdf-preview-modal">
+  <div class="modal pdf-preview-box">
+    <div class="pdf-preview-header">
+      <h2 id="pdf-preview-title">Menu concordato</h2>
+      <button type="button" class="pdf-preview-close" id="pdf-preview-close" aria-label="Chiudi">&times;</button>
+    </div>
+    <iframe id="pdf-preview-frame" class="pdf-preview-frame" src="" title="Anteprima del menu in PDF"></iframe>
+    <div class="pdf-preview-actions">
+      <a id="pdf-preview-open-tab" href="#" target="_blank" rel="noopener" class="btn btn-secondary">Apri in una nuova scheda</a>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="password-modal">
   <div class="modal" style="width:380px;">
     <h2>Conferma eliminazione</h2>
@@ -1201,6 +1249,7 @@ const TABLE = "prenotazioni";
 const NOTE_TABLE = "note_giorno";
 const SALA_TABLE = "sale_giorno";
 const TAVOLI_MANUALI_TABLE = "tavoli_occupati_giorno";
+const CHIUSURE_TABLE = "chiusure_giorno";
 let supabaseClient = null;
 let cloudMode = false;
 let realtimeChannel = null;
@@ -1347,6 +1396,7 @@ const OUTBOX_EXECUTORS = {
   delete_note: (payload) => supabaseClient.from(NOTE_TABLE).delete().eq("id", payload.id),
   upsert_sala_giorno: (payload) => supabaseClient.from(SALA_TABLE).upsert(payload, { onConflict: "data,turno" }),
   upsert_tavoli_manuali: (payload) => supabaseClient.from(TAVOLI_MANUALI_TABLE).upsert(payload, { onConflict: "data,turno" }),
+  upsert_chiusura: (payload) => supabaseClient.from(CHIUSURE_TABLE).upsert(payload, { onConflict: "data,turno" }),
   upsert_settings: (payload) => supabaseClient.from(SETTINGS_TABLE).upsert(payload, { onConflict: "chiave" }),
   upload_menu_pdf: (payload) => supabaseClient.storage.from("menu-gruppi").upload(payload.path, payload.file, { upsert: true, contentType: "application/pdf" }),
 };
@@ -1501,6 +1551,7 @@ function scheduleCacheSnapshot() {
       await idbPut("cache", { key: "employees", value: employees });
       await idbPut("cache", { key: "saleGiornoByDate", value: saleGiornoByDate });
       await idbPut("cache", { key: "tavoliManualiByDate", value: tavoliManualiByDate });
+      await idbPut("cache", { key: "chiusureByDate", value: chiusureByDate });
       await idbPut("cache", { key: "lastSyncedSnapshot", value: lastSyncedSnapshot });
       await idbPut("cache", { key: "syncConflicts", value: syncConflicts });
     } catch (e) {
@@ -1520,6 +1571,7 @@ async function hydrateFromCache() {
     if (map.employees) employees = map.employees;
     if (map.saleGiornoByDate) saleGiornoByDate = map.saleGiornoByDate;
     if (map.tavoliManualiByDate) tavoliManualiByDate = map.tavoliManualiByDate;
+    if (map.chiusureByDate) chiusureByDate = map.chiusureByDate;
     if (map.lastSyncedSnapshot) lastSyncedSnapshot = map.lastSyncedSnapshot;
     if (map.syncConflicts) { syncConflicts = map.syncConflicts; renderConflictsBadge(); }
   } catch (e) {
@@ -1814,6 +1866,10 @@ function subscribeRealtime() {
       await loadTavoliManuali();
       renderTavoliStatusRow();
     })
+    .on("postgres_changes", { event: "*", schema: "public", table: CHIUSURE_TABLE }, async () => {
+      await loadChiusure();
+      render();
+    })
     .subscribe();
 }
 
@@ -2009,6 +2065,7 @@ function render() {
   renderSalaToggleButtons();
   const key = dateKey(currentDate);
   ["pranzo","cena"].forEach(turno => {
+    const chiuso = isChiuso(turno);
     const items = reservations
       .filter(r => r.data === key && r.turno === turno)
       .sort((a,b) => {
@@ -2024,9 +2081,9 @@ function render() {
         return a.orario.localeCompare(b.orario);
       });
     const coperti = items.filter(r => !r.cancellato).reduce((sum, r) => sum + (Number(r.ospiti) || 0), 0);
-    countEl[turno].textContent = items.length
+    countEl[turno].textContent = chiuso ? "" : (items.length
       ? `${items.length} ${items.length === 1 ? "prenotazione" : "prenotazioni"} · ${coperti} ${coperti === 1 ? "coperto" : "coperti"}`
-      : "";
+      : "");
 
     const conteggioOrari = {};
     items.filter(r => !r.cancellato).forEach(r => {
@@ -2035,10 +2092,16 @@ function render() {
     });
     const breakdownEl = $(`#breakdown-${turno}`);
     if (breakdownEl) {
-      breakdownEl.innerHTML = orariPerTurno(turno).map(t => {
+      breakdownEl.innerHTML = chiuso ? "" : orariPerTurno(turno).map(t => {
         const n = conteggioOrari[t] || 0;
         return `<span class="orario-pill ${n ? "has-res" : ""}">${t} · ${n}</span>`;
       }).join("");
+    }
+
+    // Servizio chiuso: niente elenco prenotazioni, solo l'avviso ben visibile.
+    if (chiuso) {
+      listEl[turno].innerHTML = `<div class="chiuso-banner">Chiuso</div>`;
+      return;
     }
 
     if (!items.length) {
@@ -2063,7 +2126,7 @@ function render() {
               ${r.posizione === "dentro" ? `<span title="Dentro">&#127968;</span>` : ""}
               ${r.posizione === "fuori" ? `<span title="Fuori">&#9728;&#65039;</span>` : ""}
               ${r.primo_turno ? `<span class="res-meta-item" title="Primo turno">&#128260; Primo turno</span>` : ""}
-              ${(r.gruppo && r.menu_pdf_path && !r._pdfPending) ? `<a class="menu-pdf-link" href="${menuPdfUrl(r.menu_pdf_path)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Apri il menu concordato (PDF)">&#128196;</a>` : ""}
+              ${(r.gruppo && r.menu_pdf_path && !r._pdfPending) ? `<button type="button" class="menu-pdf-link" data-pdf-id="${r.id}" title="Visualizza il menu concordato (PDF)">&#128196;</button>` : ""}
               ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Invia conferma WhatsApp">&#128172;</a>` : ""}
             </div>
           </div>
@@ -2077,17 +2140,22 @@ function render() {
   updateAddButtonsState();
   renderTavoliStatusRow();
   updateEditSelectedButton();
+  renderChiusuraUI();
   scheduleCacheSnapshot();
 }
 
-// Non si possono creare nuove prenotazioni per un giorno gia' passato: i
-// pulsanti "+" restano visibili ma disattivati, cosi' resta chiaro perche'
-// (ed evitiamo di doverli far sparire e ricomparire cambiando giorno).
+// Non si possono creare nuove prenotazioni per un giorno gia' passato, ne'
+// per un servizio chiuso (vedi lucchetto/isChiuso): i pulsanti "+" restano
+// visibili ma disattivati, cosi' resta chiaro perche' (ed evitiamo di
+// doverli far sparire e ricomparire cambiando giorno o servizio).
 function updateAddButtonsState() {
   const past = isPastDate(currentDate);
   document.querySelectorAll(".add-btn").forEach(btn => {
-    btn.disabled = past;
-    btn.title = past ? "Non e' possibile creare nuove prenotazioni per una data gia' passata" : "";
+    const chiuso = isChiuso(btn.dataset.turno);
+    btn.disabled = past || chiuso;
+    btn.title = past
+      ? "Non e' possibile creare nuove prenotazioni per una data gia' passata"
+      : (chiuso ? "Il servizio risulta chiuso: non si accettano prenotazioni" : "");
   });
 }
 
@@ -2130,6 +2198,7 @@ async function loadForDate() {
   await loadNotesForDate();
   await loadSaleGiorno();
   await loadTavoliManuali();
+  await loadChiusure();
   if (!cloudMode) {
     if (!demoSeeded) seedDemoData();
     await purgeExpiredCancellations();
@@ -2658,10 +2727,38 @@ $("#f-gruppo-pdf").addEventListener("change", (e) => {
 
 // URL pubblico del PDF nel bucket Storage "menu-gruppi" (bucket pubblico:
 // nessuna autenticazione richiesta per scaricare, solo per caricare).
+// Il percorso del PDF resta sempre lo stesso (<id prenotazione>/menu.pdf,
+// sovrascritto con upsert a ogni nuovo caricamento): senza un parametro che
+// cambia, sia il browser sia la CDN davanti allo storage di Supabase
+// continuano a servire da cache il PDF vecchio anche dopo averne caricato
+// uno nuovo. Aggiungendo un parametro sempre diverso si forza ogni volta un
+// download fresco, cosa che per un PDF di poche pagine, aperto di rado, non
+// costa nulla in pratica.
 function menuPdfUrl(path) {
   if (!path || !SUPABASE_URL) return "";
-  return `${SUPABASE_URL}/storage/v1/object/public/menu-gruppi/${path}`;
+  return `${SUPABASE_URL}/storage/v1/object/public/menu-gruppi/${path}?v=${Date.now()}`;
 }
+
+// Anteprima del PDF in una finestrella sopra la pagina, invece di scaricarlo
+// subito: comoda per dare un'occhiata veloce al menu concordato senza uscire
+// dall'agenda. Il pulsante "Apri in una nuova scheda" resta come alternativa
+// per i casi (rari, soprattutto su alcuni telefoni) in cui il browser non
+// riesce a mostrare il PDF dentro la finestrella.
+function openPdfPreview(reservationId) {
+  const r = reservations.find(x => x.id === reservationId);
+  if (!r || !r.menu_pdf_path) return;
+  const url = menuPdfUrl(r.menu_pdf_path);
+  $("#pdf-preview-title").textContent = r.nome ? `Menu concordato — ${r.nome}` : "Menu concordato";
+  $("#pdf-preview-frame").src = url;
+  $("#pdf-preview-open-tab").href = url;
+  $("#pdf-preview-modal").classList.add("show");
+}
+function closePdfPreview() {
+  $("#pdf-preview-modal").classList.remove("show");
+  $("#pdf-preview-frame").src = ""; // interrompe il caricamento una volta chiusa
+}
+$("#pdf-preview-close").addEventListener("click", closePdfPreview);
+$("#pdf-preview-modal").addEventListener("click", (e) => { if (e.target.id === "pdf-preview-modal") closePdfPreview(); });
 
 // Caricamento del PDF del menu: passa dallo stesso meccanismo offline-safe
 // (dbWrite/coda) di tutte le altre scritture, cosi' se non c'e' connessione
@@ -2699,7 +2796,11 @@ async function uploadMenuPdf(reservationId, file) {
       render();
       await persist(reservationId, { menu_pdf_path: null, menu_pdf_nome: null }, true);
     }
-    alert("Il PDF del menu non e' stato caricato correttamente (problema di connessione o di permessi sul bucket 'menu-gruppi'). Riapri la prenotazione in modifica e prova a ricaricare il file.");
+    // Il dettaglio vero dell'errore (es. "Bucket not found", "row-level
+    // security", un problema di rete...) viene mostrato per intero, cosi'
+    // non serve andare a cercarlo nella console per capire cosa e' successo.
+    const dettaglio = (result.error && (result.error.message || result.error.error || String(result.error))) || "errore sconosciuto";
+    alert(`Il PDF del menu non e' stato caricato correttamente.\n\nDettaglio: ${dettaglio}\n\nRiapri la prenotazione in modifica e prova a ricaricare il file.`);
     return;
   }
   if (r) { r._pdfPending = false; render(); scheduleCacheSnapshot(); }
@@ -2834,10 +2935,12 @@ document.querySelectorAll(".res-list").forEach(list => {
   list.addEventListener("click", (e) => {
     const arriveBtn = e.target.closest(".arrive-btn");
     if (arriveBtn) { toggleArrivato(arriveBtn.dataset.id); return; }
+    const pdfBtn = e.target.closest(".menu-pdf-link");
+    if (pdfBtn) { openPdfPreview(pdfBtn.dataset.pdfId); return; }
     // Tocco singolo sulla riga stessa: nessuna azione (richiesto esplicitamente).
   });
   list.addEventListener("dblclick", (e) => {
-    if (e.target.closest(".arrive-btn") || e.target.closest(".wa-btn")) return;
+    if (e.target.closest(".arrive-btn") || e.target.closest(".wa-btn") || e.target.closest(".menu-pdf-link")) return;
     const card = e.target.closest(".res-card");
     if (!card) return;
     toggleResSelection(card.dataset.id);
@@ -2957,9 +3060,25 @@ $("#delete-btn").addEventListener("click", () => {
   setTimeout(() => $("#pw-input").focus(), 50);
 });
 
+// Lo stesso modal password, oltre all'eliminazione definitiva, protegge
+// anche il lucchetto di apertura/chiusura del servizio (vedi piu' sotto):
+// "pendingChiusuraToggle" tiene il turno in attesa di conferma, in
+// alternativa a "pendingDeleteId" (uno solo dei due e' valorizzato per volta).
+let pendingChiusuraToggle = null;
+
+function openPasswordModalForChiusura(turno) {
+  pendingDeleteId = null;
+  pendingChiusuraToggle = { turno };
+  $("#pw-input").value = "";
+  $("#pw-error").classList.remove("show");
+  $("#password-modal").classList.add("show");
+  setTimeout(() => $("#pw-input").focus(), 50);
+}
+
 function closePasswordModal() {
   $("#password-modal").classList.remove("show");
   pendingDeleteId = null;
+  pendingChiusuraToggle = null;
 }
 
 $("#pw-cancel-btn").addEventListener("click", closePasswordModal);
@@ -2970,6 +3089,12 @@ $("#pw-confirm-btn").addEventListener("click", async () => {
     $("#pw-error").classList.add("show");
     $("#pw-input").value = "";
     $("#pw-input").focus();
+    return;
+  }
+  if (pendingChiusuraToggle) {
+    const { turno } = pendingChiusuraToggle;
+    closePasswordModal();
+    await toggleChiusura(turno);
     return;
   }
   const id = pendingDeleteId;
@@ -3451,6 +3576,83 @@ document.querySelectorAll(".sala-toggle-row").forEach(row => {
     if (!btn) return;
     toggleSalaGiorno(btn.dataset.turno, btn.dataset.sala);
   });
+});
+
+/* ---------- Apertura/chiusura del servizio (lucchetto) ----------
+   Il ristorante e' chiuso di default la domenica (pranzo e cena) e il
+   lunedi' a pranzo: questo "default" si applica da solo, in base al giorno
+   della settimana, senza bisogno di nessuna azione. Il lucchetto accanto al
+   sole/luna permette pero' di forzare manualmente lo stato (per chiudere
+   un giorno in piu', o per riaprire eccezionalmente un giorno di solito
+   chiuso), protetto dalla stessa password usata per l'eliminazione
+   definitiva. La scelta manuale resta specifica per quella data + turno
+   (viene salvata come override esplicito) e non cambia il default per le
+   altre settimane. */
+let chiusureByDate = {}; // override esplicito: { "2026-09-13": { cena: true } }. Se assente, vale il default sotto.
+
+function isDefaultChiuso(date, turno) {
+  const giorno = date.getDay(); // 0 = domenica, 1 = lunedi', ... 6 = sabato
+  if (giorno === 0) return true; // domenica: chiuso pranzo e cena
+  if (giorno === 1 && turno === "pranzo") return true; // lunedi': chiuso solo a pranzo
+  return false;
+}
+
+function isChiuso(turno) {
+  const key = dateKey(currentDate);
+  const perTurno = chiusureByDate[key];
+  if (perTurno && perTurno[turno] !== undefined && perTurno[turno] !== null) return !!perTurno[turno];
+  return isDefaultChiuso(currentDate, turno);
+}
+
+async function loadChiusure() {
+  const key = dateKey(currentDate);
+  if (!cloudMode || !isOnline()) return; // in demo (o offline) resta quanto gia' impostato in questa sessione
+  const { data, error } = await supabaseClient.from(CHIUSURE_TABLE).select("turno,chiuso").eq("data", key);
+  if (error) { console.error("Errore caricamento stato apertura/chiusura:", error); return; }
+  const perTurno = {};
+  (data || []).forEach(row => { perTurno[row.turno] = !!row.chiuso; });
+  chiusureByDate[key] = perTurno;
+}
+
+async function toggleChiusura(turno) {
+  const key = dateKey(currentDate);
+  const nuovoStato = !isChiuso(turno);
+  if (!chiusureByDate[key]) chiusureByDate[key] = {};
+  chiusureByDate[key][turno] = nuovoStato;
+  render();
+  if (cloudMode) {
+    scheduleCacheSnapshot();
+    const result = await dbWrite(
+      { type: "upsert_chiusura", payload: { data: key, turno, chiuso: nuovoStato } },
+      () => supabaseClient.from(CHIUSURE_TABLE).upsert({ data: key, turno, chiuso: nuovoStato }, { onConflict: "data,turno" })
+    );
+    if (result.error) console.error("Errore salvataggio stato apertura/chiusura:", result.error);
+  }
+}
+
+// Aggiorna l'aspetto del lucchetto, la classe "chiuso" sul pannello (che
+// nasconde sale extra/tavoli/riepilogo orari via CSS) e disattiva
+// "Disposizione" quando il servizio e' chiuso (non c'e' nulla da disporre).
+function renderChiusuraUI() {
+  ["pranzo", "cena"].forEach(turno => {
+    const chiuso = isChiuso(turno);
+    const panel = document.querySelector(`.panel[data-turno="${turno}"]`);
+    if (panel) panel.classList.toggle("chiuso", chiuso);
+    const lockBtn = $(`#lock-btn-${turno}`);
+    if (lockBtn) {
+      lockBtn.classList.toggle("locked", chiuso);
+      lockBtn.innerHTML = chiuso ? "&#128274;" : "&#128275;";
+      lockBtn.title = chiuso
+        ? "Servizio chiuso: tocca per riaprirlo (richiede password)"
+        : "Servizio aperto: tocca per chiuderlo (richiede password)";
+    }
+    const dispBtn = document.querySelector(`.disp-btn[data-turno="${turno}"]`);
+    if (dispBtn) dispBtn.disabled = chiuso;
+  });
+}
+
+document.querySelectorAll(".lock-btn").forEach(btn => {
+  btn.addEventListener("click", () => openPasswordModalForChiusura(btn.dataset.turno));
 });
 
 // Orari "da ultimo turno": un tavolo prenotato (in modo normale, non manuale)
