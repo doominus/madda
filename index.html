@@ -353,6 +353,8 @@
     padding:2px 6px;border:1.5px solid var(--text);border-radius:3px;
     font-weight:800;font-size:13px;color:var(--text);line-height:1.3;
   }
+  #chi-preso-salta-btn{visibility:hidden;}
+  #chi-preso-salta-btn.show{visibility:visible;}
   .wa-btn{
     display:inline-flex;align-items:center;justify-content:center;background:transparent;color:#3f8a52;
     font-size:16px;text-decoration:none;padding:2px;line-height:1;
@@ -366,6 +368,8 @@
   .icon-pending{color:var(--pending);}
   .icon-warn{color:var(--warn);}
   .icon-queued{color:var(--pending);}
+  button.res-status-mini{border:none;background:transparent;padding:0;cursor:pointer;font-family:inherit;}
+  button.res-status-mini:active{opacity:.6;}
   .spin{animation:spin 1s linear infinite;}
   .arrive-btn{
     width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:transparent;
@@ -843,7 +847,11 @@
       <input type="file" id="f-gruppo-pdf" accept="application/pdf">
       <div id="gruppo-pdf-current" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
     </div>
-    <div class="field">
+    <!-- Visibile solo in "Modifica prenotazione" (vedi openEditModal/openNewModal):
+         per una prenotazione nuova l'operatore si sceglie dal popup che
+         compare dopo il salvataggio, non qui - questo campo serve solo a
+         correggerlo o assegnarlo in un secondo momento. -->
+    <div class="field" id="utente-field" style="display:none;">
       <label>Inserito da</label>
       <input type="hidden" id="f-utente">
       <div class="chip-select" id="utente-chip-select"></div>
@@ -858,6 +866,24 @@
       <div style="flex:1;"></div>
       <button class="btn btn-secondary" id="cancel-btn">Annulla</button>
       <button class="btn btn-primary" id="save-btn">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Popup "Chi ha preso la prenotazione?": compare da solo appena si salva
+     una prenotazione nuova, cosi' non serve piu' scegliere l'operatore nel
+     modulo (che rallentava l'inserimento veloce). Nei primi 10 secondi non
+     si puo' chiudere senza scegliere, poi compare il pulsante "Salta". Si
+     riapre anche in qualsiasi momento toccando l'etichetta sulla card della
+     prenotazione, per correggere o assegnare l'operatore in un secondo
+     momento (in quel caso il pulsante "Salta"/chiudi e' visibile subito). -->
+<div class="overlay" id="chi-preso-modal">
+  <div class="modal" style="width:380px;">
+    <h2>Chi ha preso la prenotazione?</h2>
+    <div class="chip-select" id="chi-preso-chip-select"></div>
+    <div class="modal-actions">
+      <div style="flex:1;"></div>
+      <button class="btn btn-secondary" id="chi-preso-salta-btn">Salta</button>
     </div>
   </div>
 </div>
@@ -1154,6 +1180,12 @@ with check (auth.role() = 'authenticated');
 alter publication supabase_realtime add table tavoli_occupati_giorno;</pre>
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">Se non hai ancora attivato il login, sostituisci la riga "create policy" con <code>using (true) with check (true)</code>. Senza questa tabella i tocchi sui tavoli funzionano comunque, ma solo sul dispositivo su cui li tocchi (non si sincronizzano).</p>
     </div>
+    <div class="alter-box">
+      <p><b>Novita "Messaggi WhatsApp automatici":</b> esegui una sola volta questo script nell'SQL Editor per aggiungere alla tabella prenotazioni i campi che tengono traccia dell'invio (usati dall'iconcina di stato accanto a ogni prenotazione con telefono):</p>
+      <pre>alter table prenotazioni add column if not exists whatsapp_status text;
+alter table prenotazioni add column if not exists whatsapp_errore text;</pre>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:0;">L'invio vero e proprio e' gestito da una funzione automatica dentro Supabase (non da questa pagina): la trovi, gia' pronta all'uso, nei file <code>ISTRUZIONI-WHATSAPP.md</code>, <code>whatsapp-automatico-setup.sql</code> e <code>invia-whatsapp.ts</code> forniti insieme a questa webapp. Qui sotto, in fondo a questa schermata, puoi accendere/spegnere l'invio automatico una volta completata quella configurazione.</p>
+    </div>
 
     <h2 style="margin-top:30px;">Tavoli del locale</h2>
     <p>Aggiungi qui l'elenco dei tavoli, ciascuno assegnato alla sua sala: ti serviranno nella modalita "Crea disposizione" per assegnare i tavoli alle prenotazioni con un tocco. Le sale Saletta, Osteria, Negozio e Plastic si usano sempre; Sopra, Cantina e Fuori sono occasionali e si attivano/disattivano con i pulsanti "Sale extra" in cima a Pranzo e a Cena (rosso = spenta, verde = accesa), separatamente per ogni servizio (es. puoi tenere Sopra accesa solo a pranzo): quando una sala e' spenta per quel servizio, i suoi tavoli non compaiono in "Tavoli liberi" ne' in "Disposizione" per quel turno.</p>
@@ -1193,6 +1225,13 @@ alter publication supabase_realtime add table tavoli_occupati_giorno;</pre>
     <div style="display:flex;align-items:center;gap:12px;margin:-6px 0 6px;">
       <button class="btn btn-secondary" id="save-email-backup" style="height:38px;">Salva indirizzo</button>
       <span id="email-backup-status" style="font-size:12px;color:var(--muted);"></span>
+    </div>
+
+    <h2 style="margin-top:30px;">Messaggi WhatsApp</h2>
+    <p>Ogni prenotazione con un numero di telefono mostra un bottone &#128172; per aprire WhatsApp con un messaggio di conferma gia' scritto, da inviare a mano. Con l'interruttore qui sotto, se hai completato la configurazione descritta in <code>ISTRUZIONI-WHATSAPP.md</code>, il messaggio di conferma parte da solo appena la prenotazione viene salvata con un numero di telefono, e compare una piccola icona di stato (&#9989; inviato, &#9888;&#65039; errore, tocca per riprovare).</p>
+    <div style="display:flex;align-items:center;gap:12px;margin:-6px 0 6px;">
+      <button type="button" class="chip-option" id="f-whatsapp-auto">Invio automatico: <span id="whatsapp-auto-label">spento</span></button>
+      <span id="whatsapp-auto-status" style="font-size:12px;color:var(--muted);"></span>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="logout-btn" style="display:none;">Esci</button>
@@ -1253,6 +1292,7 @@ const CHIUSURE_TABLE = "chiusure_giorno";
 let supabaseClient = null;
 let cloudMode = false;
 let realtimeChannel = null;
+let whatsappAutoEnabled = false; // impostazione "Invio automatico" (tabella impostazioni, chiave whatsapp_auto)
 
 /* =========================================================================
    OFFLINE-FIRST: salvataggio locale + coda di sincronizzazione
@@ -1473,7 +1513,16 @@ async function drainOutbox() {
           recordSyncedSnapshot(op.payload);
         } else if (op.type === "delete_reservation") {
           delete lastSyncedSnapshot[op.payload.id];
-        } else if (op.type === "upload_menu_pdf") {
+        }
+        if (op.type === "insert_reservation" || op.type === "update_reservation") {
+          // Prenotazione creata/modificata mentre eravamo offline, ora appena
+          // arrivata sul server: stesso punto di innesco di persist(), non
+          // aspettare qui, non deve rallentare lo svuotamento della coda.
+          const rid = op.payload.id;
+          const r = reservations.find(x => x.id === rid);
+          if (r) maybeInviaWhatsappAutomatico(r);
+        }
+        if (op.type === "upload_menu_pdf") {
           // Il PDF caricato mentre eravamo offline e' ora davvero sul
           // server: il link sulla card puo' comparire (vedi render()).
           const resId = (op.payload.path || "").split("/")[0];
@@ -1800,6 +1849,7 @@ async function startApp() {
   await loadForDate();
   await loadTables();
   await loadEmployees();
+  await loadWhatsappAutoSetting();
   subscribeRealtime();
   setupOfflineSync();
 }
@@ -2014,6 +2064,84 @@ function whatsappLink(r) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 }
 
+/* ---------- Invio automatico via WhatsApp (WhatsApp Business Platform) ----------
+   A differenza del bottone manuale sopra (che apre WhatsApp con un testo
+   pronto ma va inviato a mano), questa parte chiama la Edge Function
+   "invia-whatsapp" dentro Supabase, che manda davvero il messaggio tramite
+   l'API ufficiale Meta - vedi ISTRUZIONI-WHATSAPP.md per la configurazione
+   una tantum (account Meta, numero, token, modello di messaggio approvato).
+   Il testo del messaggio automatico è quello del "modello" (template)
+   approvato da Meta, non questo file: per cambiarlo serve una nuova
+   approvazione (vedi la guida), non basta modificare il codice qui.
+   La funzione aggiorna lei stessa, sul database, i campi whatsapp_status
+   ("inviato"/"errore") e whatsapp_errore della prenotazione: la sincronizzazione
+   in tempo reale già presente si occupa di aggiornare l'iconcina su tutti i
+   dispositivi, non serve altro codice per quello. */
+async function reinviaWhatsapp(id) {
+  const r = reservations.find(x => x.id === id);
+  if (!r || !r.telefono || !cloudMode) return;
+  r.whatsapp_status = "inviando";
+  render();
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("invia-whatsapp", { body: { id } });
+    if (error) throw error;
+    r.whatsapp_status = (data && data.ok) ? "inviato" : "errore";
+    r.whatsapp_errore = (data && data.error) || null;
+  } catch (e) {
+    r.whatsapp_status = "errore";
+    r.whatsapp_errore = String((e && e.message) || e || "Errore sconosciuto");
+  }
+  render();
+}
+
+// Chiamata dopo ogni salvataggio riuscito (vedi persist()): invia da sola la
+// prima volta che una prenotazione risulta avere un telefono, mai piu' di una
+// volta (whatsapp_status gia' valorizzato = gia' tentato, non si rimanda da
+// soli - resta pero' sempre possibile il reinvio manuale toccando l'icona).
+// Minuti che mancano da adesso all'orario della prenotazione (data+orario
+// locali, stesso fuso di chi usa l'agenda). Null se data/orario mancanti o
+// non validi.
+function minutiAllArrivo(r) {
+  if (!r.data || !r.orario) return null;
+  const giorno = parseKey(r.data);
+  const [hh, mm] = r.orario.split(":").map(Number);
+  if (isNaN(hh) || isNaN(mm)) return null;
+  const arrivo = new Date(giorno.getFullYear(), giorno.getMonth(), giorno.getDate(), hh, mm, 0, 0);
+  return (arrivo.getTime() - Date.now()) / 60000;
+}
+
+async function maybeInviaWhatsappAutomatico(r) {
+  if (!whatsappAutoEnabled || !cloudMode) return;
+  if (!r || r.cancellato || !r.telefono || r.whatsapp_status) return;
+  // Se mancano meno di un'ora all'orario della prenotazione (cliente in
+  // arrivo a breve, o walk-in preso al momento), non serve mandare una
+  // conferma via WhatsApp: si salta, senza riprovare piu' avanti (l'orario
+  // non fara' che avvicinarsi). Resta comunque disponibile l'invio manuale
+  // (bottone 💬) per chi lo vuole mandare comunque.
+  const minuti = minutiAllArrivo(r);
+  if (minuti === null || minuti < 60) return;
+  await reinviaWhatsapp(r.id);
+}
+
+function whatsappStatusIcon(r) {
+  // "non_pertinente" e' il valore con cui, una tantum, sono state marcate le
+  // prenotazioni gia' esistenti prima di accendere l'invio automatico (vedi
+  // ISTRUZIONI-WHATSAPP.md): va trattato come "nessuna icona", altrimenti
+  // comparirebbe un falso allarme ⚠️ su tutte le prenotazioni vecchie.
+  if (!r.telefono || !r.whatsapp_status || r.whatsapp_status === "non_pertinente") return "";
+  if (r.whatsapp_status === "inviando") {
+    return `<span class="res-status-mini icon-pending spin" title="Invio WhatsApp in corso...">&#8635;</span>`;
+  }
+  if (r.whatsapp_status === "inviato") {
+    // Una volta inviato con successo non si puo' piu' rimandare toccando
+    // l'icona (per evitare di rimandare per sbaglio la conferma a un
+    // cliente che l'ha gia' ricevuta): resta solo il bottone manuale 💬 per
+    // chi vuole comunque rimandarlo di proposito.
+    return `<span class="res-status-mini icon-ok" title="Messaggio di conferma inviato automaticamente.">&#9989;</span>`;
+  }
+  return `<button type="button" class="res-status-mini icon-warn wa-status-btn" data-id="${r.id}" title="${escapeHtml(r.whatsapp_errore || "Invio WhatsApp non riuscito")}. Tocca per riprovare.">&#9888;&#65039;</button>`;
+}
+
 // Cerca fra tutte le prenotazioni passate (non disdette, escludendo quella
 // eventualmente in modifica) altre prenotazioni con lo stesso numero di
 // telefono, per riconoscere un cliente abituale. In modalita cloud interroga
@@ -2127,7 +2255,8 @@ function render() {
               ${r.posizione === "fuori" ? `<span title="Fuori">&#9728;&#65039;</span>` : ""}
               ${r.primo_turno ? `<span class="res-meta-item" title="Primo turno">&#128260; Primo turno</span>` : ""}
               ${(r.gruppo && r.menu_pdf_path && !r._pdfPending) ? `<button type="button" class="menu-pdf-link" data-pdf-id="${r.id}" title="Visualizza il menu concordato (PDF)">&#128196;</button>` : ""}
-              ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Invia conferma WhatsApp">&#128172;</a>` : ""}
+              ${!r.cancellato ? whatsappStatusIcon(r) : ""}
+              ${(!r.cancellato && r._status === "ok" && whatsappLink(r)) ? `<a class="wa-btn" href="${whatsappLink(r)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Invia di nuovo a mano (apre WhatsApp con il messaggio pronto)">&#128172;</a>` : ""}
             </div>
           </div>
           ${r.note ? `<div class="res-note">${escapeHtml(r.note)}</div>` : ""}
@@ -2852,7 +2981,7 @@ function openNewModal(turno) {
   $("#phone-status").classList.remove("phone-status-error");
   setAbitualeToggle(false);
   setPrimoTurnoToggle(false);
-  fillEmployeeSelect(lastEmployee);
+  $("#utente-field").style.display = "none";
   $("#delete-btn").style.display = "none";
   $("#cancel-res-btn").style.display = "none";
   // Il campo tavolo compare solo qui (nuova prenotazione), mai in modifica
@@ -2884,6 +3013,7 @@ function openEditModal(r) {
   $("#phone-status").classList.remove("phone-status-error");
   setAbitualeToggle(r.abituale);
   setPrimoTurnoToggle(r.primo_turno);
+  $("#utente-field").style.display = "";
   fillEmployeeSelect(r.utente || "");
   // In modifica il campo tavolo resta sempre nascosto: l'assegnazione di
   // una prenotazione gia' esistente si fa solo da Disposizione, per non
@@ -2937,10 +3067,28 @@ document.querySelectorAll(".res-list").forEach(list => {
     if (arriveBtn) { toggleArrivato(arriveBtn.dataset.id); return; }
     const pdfBtn = e.target.closest(".menu-pdf-link");
     if (pdfBtn) { openPdfPreview(pdfBtn.dataset.pdfId); return; }
+    const waStatusBtn = e.target.closest(".wa-status-btn");
+    if (waStatusBtn) {
+      const idWa = waStatusBtn.dataset.id;
+      const rWa = reservations.find(x => x.id === idWa);
+      // Su tablet non c'e' il "mouse over" che mostra il dettaglio (il title
+      // del bottone): se l'ultimo invio e' fallito, prima si mostra l'errore
+      // con una finestra normale (tocco-compatibile) e si chiede conferma
+      // prima di ritentare, cosi' il messaggio non sparisce subito.
+      if (rWa && rWa.whatsapp_status === "errore") {
+        const dettaglio = rWa.whatsapp_errore || "Errore sconosciuto";
+        if (confirm(`Invio WhatsApp non riuscito:\n\n${dettaglio}\n\nRiprovare adesso?`)) {
+          reinviaWhatsapp(idWa);
+        }
+      } else {
+        reinviaWhatsapp(idWa);
+      }
+      return;
+    }
     // Tocco singolo sulla riga stessa: nessuna azione (richiesto esplicitamente).
   });
   list.addEventListener("dblclick", (e) => {
-    if (e.target.closest(".arrive-btn") || e.target.closest(".wa-btn") || e.target.closest(".menu-pdf-link")) return;
+    if (e.target.closest(".arrive-btn") || e.target.closest(".wa-btn") || e.target.closest(".res-status-mini") || e.target.closest(".menu-pdf-link")) return;
     const card = e.target.closest(".res-card");
     if (!card) return;
     toggleResSelection(card.dataset.id);
@@ -2967,7 +3115,6 @@ $("#save-btn").addEventListener("click", async () => {
     alert("Compila almeno nome, orario e numero ospiti.");
     return;
   }
-  const utente = $("#f-utente").value;
   const note = $("#f-note").value.trim();
   // Id definitivo della prenotazione: per una modifica e' gia' noto, per una
   // nuova lo generiamo subito (invece che piu' sotto) cosi' da poterlo usare
@@ -2991,7 +3138,6 @@ $("#save-btn").addEventListener("click", async () => {
     posizione: $("#f-posizione").value,
     telefono: $("#f-telefono").value.trim(),
     note,
-    utente,
     abituale: $("#f-abituale-toggle").classList.contains("selected"),
     primo_turno: $("#f-primo-turno-toggle").classList.contains("selected"),
     // "Gruppo": stato Confermato/Da confermare e riferimento al PDF del menu
@@ -3008,7 +3154,14 @@ $("#save-btn").addEventListener("click", async () => {
   const tavoloFieldVisibile = getComputedStyle($("#tavolo-field")).display !== "none";
   const assegnaTavoloAllaCreazione = !id && tavoloFieldVisibile && tavoloScelto;
   if (assegnaTavoloAllaCreazione) payload.tavolo = tavoloScelto;
-  if (utente) lastEmployee = utente;
+  // Il selettore "Inserito da" compare solo in modifica (vedi openEditModal):
+  // per una prenotazione nuova l'operatore non si tocca qui, lo assegna il
+  // popup che compare dopo il salvataggio.
+  if (id) {
+    const utente = $("#f-utente").value;
+    payload.utente = utente;
+    if (utente) lastEmployee = utente;
+  }
   pendingGruppoPdfFile = null;
   closeModal();
 
@@ -3025,6 +3178,10 @@ $("#save-btn").addEventListener("click", async () => {
   } else {
     reservations.push({ id: localId, ...payload, _status:"pending", _pdfPending: pdfInAttesa });
     render();
+    // Chiede subito "Chi ha preso la prenotazione?" invece di far scegliere
+    // l'operatore nel modulo (rallentava l'inserimento): non blocca il
+    // salvataggio, che prosegue comunque in parallelo.
+    apriPopupChiHaPreso(localId);
     if (assegnaTavoloAllaCreazione) await clearTavoloManualeIfSet(turnoScelto, tavoloScelto);
     await persist(localId, payload, false);
   }
@@ -3147,6 +3304,7 @@ async function persist(localId, payload, isUpdate) {
     } else if (result.data) {
       recordSyncedSnapshot(result.data);
     }
+    if (r) maybeInviaWhatsappAutomatico(r); // non attende la risposta: non blocca il salvataggio
   }
   render();
 }
@@ -3162,6 +3320,7 @@ $("#open-help").addEventListener("click", async () => {
   $("#logout-btn").style.display = cloudMode ? "inline-flex" : "none";
   renderTagList();
   await loadEmailBackupSetting();
+  await loadWhatsappAutoSetting();
 });
 $("#close-help").addEventListener("click", () => $("#help-modal").classList.remove("show"));
 $("#help-modal").addEventListener("click", (e) => { if (e.target.id === "help-modal") $("#help-modal").classList.remove("show"); });
@@ -3200,6 +3359,37 @@ $("#save-email-backup").addEventListener("click", async () => {
   const { error } = await supabaseClient.from(SETTINGS_TABLE)
     .upsert({ chiave: "email_backup", valore: value }, { onConflict: "chiave" });
   status.textContent = error ? "Errore nel salvataggio, riprova." : "Salvato.";
+});
+
+/* ---------- Impostazione: invio automatico messaggi WhatsApp ---------- */
+function setWhatsappAutoButton(on) {
+  $("#f-whatsapp-auto").classList.toggle("selected", on);
+  $("#whatsapp-auto-label").textContent = on ? "acceso" : "spento";
+}
+
+async function loadWhatsappAutoSetting() {
+  if (!cloudMode) { whatsappAutoEnabled = false; setWhatsappAutoButton(false); return; }
+  const { data, error } = await supabaseClient.from(SETTINGS_TABLE).select("valore").eq("chiave", "whatsapp_auto").maybeSingle();
+  // In assenza della tabella/riga (non ancora configurata) resta spento di default:
+  // non si vuole rischiare invii automatici prima che la configurazione Meta sia pronta.
+  whatsappAutoEnabled = !error && data && data.valore === "on";
+  setWhatsappAutoButton(whatsappAutoEnabled);
+}
+
+$("#f-whatsapp-auto").addEventListener("click", async () => {
+  const status = $("#whatsapp-auto-status");
+  if (!cloudMode) { status.textContent = "Collega prima il database cloud."; return; }
+  const nuovoStato = !whatsappAutoEnabled;
+  status.textContent = "Salvataggio...";
+  const { error } = await supabaseClient.from(SETTINGS_TABLE)
+    .upsert({ chiave: "whatsapp_auto", valore: nuovoStato ? "on" : "off" }, { onConflict: "chiave" });
+  if (error) {
+    status.textContent = "Impossibile salvare (hai creato la tabella \"impostazioni\" e i campi WhatsApp? Vedi sopra \"Novita' Messaggi WhatsApp automatici\").";
+    return;
+  }
+  whatsappAutoEnabled = nuovoStato;
+  setWhatsappAutoButton(whatsappAutoEnabled);
+  status.textContent = "Salvato.";
 });
 
 /* ---------- Tavoli del locale (tag, raggruppati per sala) ---------- */
@@ -3454,6 +3644,9 @@ $("#utenti-tag-list").addEventListener("click", async (e) => {
   await saveEmployeesToCloud();
 });
 
+// Selettore "Inserito da" dentro "Modifica prenotazione" (vedi
+// openEditModal/openNewModal): unico punto per correggere o assegnare
+// l'operatore su una prenotazione gia' esistente.
 function fillEmployeeSelect(selected) {
   const value = employees.includes(selected) ? selected : "";
   $("#f-utente").value = value;
@@ -3476,6 +3669,60 @@ $("#utente-chip-select").addEventListener("click", (e) => {
   $("#utente-chip-select").querySelectorAll(".chip-option").forEach(b => {
     b.classList.toggle("selected", b.dataset.name === next);
   });
+});
+
+/* ---------- Popup "Chi ha preso la prenotazione?" ----------
+   Compare da solo appena si salva una prenotazione NUOVA: si compila senza
+   pensare all'operatore, si salva, e solo dopo compaiono questi tag per
+   assegnarlo - piu' veloce da compilare sotto pressione. Se si salta o si
+   sbaglia persona, si corregge da "Modifica prenotazione" (il selettore
+   "Inserito da" li' dentro, vedi fillEmployeeSelect). */
+let chiPresoTargetId = null;
+let chiPresoTimer = null;
+
+function apriPopupChiHaPreso(localId) {
+  if (!employees.length) return; // nessun operatore configurato: niente da chiedere
+  chiPresoTargetId = localId;
+  // Se la stessa persona ha inserito l'ultima prenotazione, propone gia'
+  // il suo tag evidenziato: comodo se ne inserisce piu' di fila, basta un
+  // tocco per confermare.
+  const selected = lastEmployee || "";
+  $("#chi-preso-chip-select").innerHTML = employees.map(n => `
+    <button type="button" class="chip-option ${n === selected ? "selected" : ""}" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>
+  `).join("");
+  const skipBtn = $("#chi-preso-salta-btn");
+  skipBtn.classList.remove("show");
+  clearTimeout(chiPresoTimer);
+  chiPresoTimer = setTimeout(() => skipBtn.classList.add("show"), 10000);
+  $("#chi-preso-modal").classList.add("show");
+}
+
+function chiudiPopupChiHaPreso() {
+  $("#chi-preso-modal").classList.remove("show");
+  clearTimeout(chiPresoTimer);
+  chiPresoTargetId = null;
+}
+
+$("#chi-preso-chip-select").addEventListener("click", async (e) => {
+  const chip = e.target.closest(".chip-option");
+  if (!chip || !chiPresoTargetId) return;
+  const name = chip.dataset.name;
+  const id = chiPresoTargetId;
+  lastEmployee = name;
+  chiudiPopupChiHaPreso();
+  const r = reservations.find(x => x.id === id);
+  if (r) { r.utente = name; render(); }
+  await persist(id, { utente: name }, true);
+});
+
+$("#chi-preso-salta-btn").addEventListener("click", chiudiPopupChiHaPreso);
+// Toccando fuori dal riquadro si chiude solo se il pulsante "Salta" e' gia'
+// comparso (altrimenti, nei primi 10 secondi dopo una prenotazione nuova,
+// il popup resta aperto apposta).
+$("#chi-preso-modal").addEventListener("click", (e) => {
+  if (e.target.id === "chi-preso-modal" && $("#chi-preso-salta-btn").classList.contains("show")) {
+    chiudiPopupChiHaPreso();
+  }
 });
 
 /* ---------- Modalita "Crea disposizione": assegnazione tavoli ---------- */
