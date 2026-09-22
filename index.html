@@ -2082,6 +2082,20 @@ async function reinviaWhatsapp(id) {
   if (!r || !r.telefono || !cloudMode) return;
   r.whatsapp_status = "inviando";
   render();
+  // Segna "inviando" anche sul database, non solo in memoria, e lo aspetta
+  // prima di contattare Wassenger: la funzione vera e propria puo' metterci
+  // qualche secondo (chiamata esterna), e in quella finestra un evento
+  // realtime su questa stessa prenotazione (es. arrivato dal salvataggio
+  // stesso che ha innescato l'invio) potrebbe ricaricare le prenotazioni dal
+  // database e ripescare whatsapp_status ancora vuoto, facendo ripartire per
+  // sbaglio un secondo invio duplicato. Scrivendolo subito sul database
+  // quella finestra si chiude quasi del tutto.
+  try {
+    await supabaseClient.from(TABLE).update({ whatsapp_status: "inviando" }).eq("id", id);
+  } catch (e) {
+    // Non blocca l'invio se questo aggiornamento "di cortesia" fallisce
+    // (es. offline per un istante): il tentativo di invio prosegue comunque.
+  }
   try {
     const { data, error } = await supabaseClient.functions.invoke("invia-whatsapp", { body: { id } });
     if (error) throw error;
@@ -2730,8 +2744,6 @@ $("#export-pdf").addEventListener("click", () => {
 
 /* ---------- Modal prenotazione ---------- */
 const resModal = $("#res-modal");
-let lastEmployee = ""; // ricorda l'ultimo utente selezionato, comodo se la stessa persona inserisce piu' prenotazioni di fila
-
 function renderOrarioChips(turno, selected) {
   let slots = orariPerTurno(turno);
   if (selected && !slots.includes(selected)) {
@@ -3160,7 +3172,6 @@ $("#save-btn").addEventListener("click", async () => {
   if (id) {
     const utente = $("#f-utente").value;
     payload.utente = utente;
-    if (utente) lastEmployee = utente;
   }
   pendingGruppoPdfFile = null;
   closeModal();
@@ -3270,7 +3281,7 @@ $("#pw-confirm-btn").addEventListener("click", async () => {
 });
 $("#pw-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#pw-confirm-btn").click(); });
 
-async function persist(localId, payload, isUpdate) {
+async function persist(localId, payload, isUpdate, opts) {
   if (!cloudMode) {
     await new Promise(res => setTimeout(res, 400));
     const r = reservations.find(x => x.id === localId);
@@ -3304,7 +3315,15 @@ async function persist(localId, payload, isUpdate) {
     } else if (result.data) {
       recordSyncedSnapshot(result.data);
     }
-    if (r) maybeInviaWhatsappAutomatico(r); // non attende la risposta: non blocca il salvataggio
+    // Il salvataggio del solo "chi ha preso la prenotazione" (vedi
+    // apriPopupChiHaPreso) passa opts.skipWhatsappCheck: arriva sempre a
+    // ridosso della creazione, mentre l'invio automatico di quella stessa
+    // prenotazione e' ancora in corso (o sta per partire tramite un
+    // ricaricamento realtime che nel frattempo ha rimpiazzato l'oggetto in
+    // memoria con una copia ancora "non inviata" presa dal database) - senza
+    // questo salto, quel secondo salvataggio rivedeva whatsapp_status ancora
+    // vuoto e faceva ripartire un secondo messaggio duplicato al cliente.
+    if (r && !(opts && opts.skipWhatsappCheck)) maybeInviaWhatsappAutomatico(r); // non attende la risposta: non blocca il salvataggio
   }
   render();
 }
@@ -3683,12 +3702,11 @@ let chiPresoTimer = null;
 function apriPopupChiHaPreso(localId) {
   if (!employees.length) return; // nessun operatore configurato: niente da chiedere
   chiPresoTargetId = localId;
-  // Se la stessa persona ha inserito l'ultima prenotazione, propone gia'
-  // il suo tag evidenziato: comodo se ne inserisce piu' di fila, basta un
-  // tocco per confermare.
-  const selected = lastEmployee || "";
+  // Nessun tag pre-evidenziato: si sceglie sempre consapevolmente chi ha
+  // preso la prenotazione, cosi' non capita di confermare per sbaglio,
+  // senza guardare, l'operatore rimasto selezionato dalla volta precedente.
   $("#chi-preso-chip-select").innerHTML = employees.map(n => `
-    <button type="button" class="chip-option ${n === selected ? "selected" : ""}" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>
+    <button type="button" class="chip-option" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>
   `).join("");
   const skipBtn = $("#chi-preso-salta-btn");
   skipBtn.classList.remove("show");
@@ -3708,11 +3726,13 @@ $("#chi-preso-chip-select").addEventListener("click", async (e) => {
   if (!chip || !chiPresoTargetId) return;
   const name = chip.dataset.name;
   const id = chiPresoTargetId;
-  lastEmployee = name;
   chiudiPopupChiHaPreso();
   const r = reservations.find(x => x.id === id);
   if (r) { r.utente = name; render(); }
-  await persist(id, { utente: name }, true);
+  // skipWhatsappCheck: questo salvataggio riguarda solo l'attribuzione
+  // dell'operatore, non deve mai far ripartire (o rischiare di duplicare)
+  // l'eventuale invio automatico WhatsApp legato alla stessa prenotazione.
+  await persist(id, { utente: name }, true, { skipWhatsappCheck: true });
 });
 
 $("#chi-preso-salta-btn").addEventListener("click", chiudiPopupChiHaPreso);
